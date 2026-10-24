@@ -1,0 +1,47 @@
+{
+  "name": "solar-cruise",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "A cockpit-view solar-system cruise with a warp ship, relativistic clock and Cesium Earth.",
+  "license": "MIT",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "postinstall": "node scripts/copy-cesium.mjs",
+    "prebuild": "node scripts/copy-cesium.mjs",
+    "format": "prettier --write \"src/**/*.{js,jsx,css}\" \"scripts/**/*.mjs\" \"*.{json,html,md}\"",
+    "format:check": "prettier --check \"src/**/*.{js,jsx,css}\" \"scripts/**/*.mjs\" \"*.{json,html,md}\"",
+    "check": "npm run format:check && npm run build"
+  },
+  "dependencies": {
+    "@react-three/drei": "10.7.9",
+    "@react-three/fiber": "9.8.1",
+    "@react-three/postprocessing": "3.2.2",
+    "cesium": "1.146.0",
+    "postprocessing": "6.39.5",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "three": "0.186.1",
+    "zustand": "5.0.3"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "6.1.2",
+    "prettier": "3.3.3",
+    "vite": "8.3.5"
+  },
+  "author": "solar-cruise contributors",
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "keywords": [
+    "solar-system",
+    "three.js",
+    "react-three-fiber",
+    "cesium",
+    "webgl",
+    "space",
+    "cockpit"
+  ]
+}

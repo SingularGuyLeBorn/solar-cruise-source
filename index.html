@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SOLAR CRUISE · 太阳系漫游</title>
+    <meta name="description" content="驾驶曲率飞船漫游太阳系：第一/第三人称驾驶舱、相对论时钟、Cesium 地球。" />
+    <link rel="stylesheet" href="/cesium/Widgets/widgets.css" />
+    <style>
+      html,
+      body,
+      #root {
+        margin: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: #02040a;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script>
+      window.CESIUM_BASE_URL = '/cesium/';
+    </script>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
