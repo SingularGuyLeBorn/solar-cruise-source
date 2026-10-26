@@ -137,5 +137,3 @@ export function HelionShip() {
 
   return <primitive object={model} />;
 }
-
-useGLTF.preload('/models/helion/ship_vanguard_mk3.glb');

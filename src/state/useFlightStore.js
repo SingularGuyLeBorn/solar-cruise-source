@@ -12,6 +12,9 @@ const SIM_SPEEDS = [
   { label: '1 年/秒', value: 365.256 },
 ];
 
+const coarseViewport =
+  typeof window !== 'undefined' && window.matchMedia('(max-width: 900px), (pointer: coarse)').matches;
+
 export const useFlightStore = create((set, get) => ({
   viewMode: 'cockpit',
   audioEnabled: true,
@@ -32,7 +35,7 @@ export const useFlightStore = create((set, get) => ({
   earthMode: false,
   scanResult: null,
   holo: {
-    open: true,
+    open: !coarseViewport,
     activeProjector: 'solar',
     formKind: 'artifact',
     formId: HOLO_ARTIFACTS[0]?.id ?? 'mask-protruding',
@@ -136,7 +139,15 @@ export const useFlightStore = create((set, get) => ({
     set((state) => ({ helpOpen: !state.helpOpen }));
   },
   toggleJump() {
-    set((state) => ({ jumpOpen: !state.jumpOpen }));
+    set((state) => {
+      const jumpOpen = !state.jumpOpen;
+      return {
+        jumpOpen,
+        selector: jumpOpen ? { ...state.selector, open: false } : state.selector,
+        helpOpen: jumpOpen ? false : state.helpOpen,
+        holo: jumpOpen ? { ...state.holo, formGalleryOpen: false } : state.holo,
+      };
+    });
   },
   addLog(text) {
     set((state) => ({ log: [text, ...state.log].slice(0, 5) }));
@@ -236,6 +247,8 @@ export const useFlightStore = create((set, get) => ({
         formLastInputAt: Date.now(),
       },
       selector: { ...state.selector, open: false },
+      helpOpen: false,
+      jumpOpen: false,
     }));
   },
   closeFormGallery() {

@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { AdditiveBlending, MeshStandardMaterial, Quaternion, Vector3 } from 'three';
+import { useGLTF } from '@react-three/drei';
+import { AdditiveBlending, Box3, Quaternion, Vector3 } from 'three';
 import { radialGlowTexture } from '../lib/textures';
 import { flightState, triggerShieldImpact } from '../state/flightState';
 import { useFlightStore } from '../state/useFlightStore';
@@ -10,8 +11,24 @@ const SHIELD_RADIUS = 5.25;
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
-const HAZARD_MIN_DELAY = 22;
-const HAZARD_RANGE = 22;
+const HAZARD_MIN_DELAY = 120;
+const HAZARD_RANGE = 120;
+
+function StrikeRock() {
+  const { scene } = useGLTF('/models/helion/asteroid_0.glb');
+  const model = useMemo(() => {
+    const clone = scene.clone(true);
+    clone.updateMatrixWorld(true);
+    const box = new Box3().setFromObject(clone);
+    const size = box.getSize(new Vector3());
+    clone.scale.setScalar(1.1 / (Math.max(size.x, size.y, size.z) || 1));
+    clone.updateMatrixWorld(true);
+    const scaled = new Box3().setFromObject(clone);
+    clone.position.sub(scaled.getCenter(new Vector3()));
+    return clone;
+  }, [scene]);
+  return <primitive object={model} />;
+}
 
 export function AsteroidStrike() {
   const strikePulse = useFlightStore((state) => state.strikePulse);
@@ -58,17 +75,6 @@ export function AsteroidStrike() {
     [],
   );
   const flashTexture = useMemo(() => radialGlowTexture('rgba(220, 250, 255, 1)', 'rgba(80, 190, 255, 0)'), []);
-  const rockMaterial = useMemo(
-    () =>
-      new MeshStandardMaterial({
-        color: '#51483f',
-        roughness: 0.95,
-        metalness: 0.06,
-        flatShading: true,
-        envMapIntensity: 0.8,
-      }),
-    [],
-  );
 
   const launch = useCallback(
     (mode = 'impact') => {
@@ -83,9 +89,9 @@ export function AsteroidStrike() {
       const side = Math.random() < 0.5 ? 1 : -1;
       const start = state.current.start
         .copy(flightState.position)
-        .addScaledVector(scratch.forward, -(3.2 + Math.random() * 1.6))
-        .addScaledVector(scratch.right, side * (8.4 + Math.random() * 1.4))
-        .addScaledVector(scratch.up, 1.4 + Math.random() * 1.4);
+        .addScaledVector(scratch.forward, 14 + Math.random() * 8)
+        .addScaledVector(scratch.right, side * (5.5 + Math.random() * 2.5))
+        .addScaledVector(scratch.up, 1.2 + Math.random() * 2.4);
       state.current.pass
         .copy(flightState.position)
         .addScaledVector(scratch.right, side * (7.8 + Math.random() * 2.6))
@@ -97,7 +103,7 @@ export function AsteroidStrike() {
       state.current.lastHud = 0;
       state.current.size = 0.55 + Math.random() * 0.9;
       state.current.mass = state.current.size ** 3;
-      state.current.duration = 0.78 + Math.random() * 0.36;
+      state.current.duration = 1.25 + Math.random() * 0.5;
       state.current.velocity.set(0, 0, 0);
       if (asteroid.current) {
         asteroid.current.visible = true;
@@ -213,7 +219,7 @@ export function AsteroidStrike() {
       const store = useFlightStore.getState();
       if (store.earthMode) return;
       if (now > nextHazard.current) {
-        launch(Math.random() < 0.58 ? 'near' : 'impact');
+        launch(Math.random() < 0.76 ? 'near' : 'impact');
         nextHazard.current = now + HAZARD_MIN_DELAY + Math.random() * HAZARD_RANGE;
       }
       return;
@@ -256,13 +262,9 @@ export function AsteroidStrike() {
   return (
     <group>
       <group ref={asteroid} visible={false}>
-        <mesh material={rockMaterial}>
-          <dodecahedronGeometry args={[0.55, 0]} />
-        </mesh>
-        <mesh position={[0.32, 0.34, 0.26]}>
-          <sphereGeometry args={[0.075, 8, 6]} />
-          <meshBasicMaterial color="#ff5b4a" toneMapped={false} />
-        </mesh>
+        <Suspense fallback={null}>
+          <StrikeRock />
+        </Suspense>
       </group>
       <sprite ref={flash} visible={false}>
         <spriteMaterial

@@ -11,6 +11,7 @@ import { AsteroidStrike } from './AsteroidStrike';
 import { SolarWeather } from './SolarWeather';
 import { HoloSelector3D } from './HoloSelector3D';
 import { Autopilot } from './Autopilot';
+import { COCKPIT_EYE_OFFSET } from '../state/flightState';
 
 export function SpaceScene() {
   return (
@@ -23,23 +24,25 @@ export function SpaceScene() {
         gl.toneMappingExposure = 1.05;
       }}
     >
+      <FlightController />
+      <Autopilot />
+      <FlightCamera />
+      <SpaceEnvironment />
       <Suspense fallback={null}>
-        <FlightController />
-        <Autopilot />
-        <FlightCamera />
-        <SpaceEnvironment />
         <SolarSystem />
-        <Ship />
-        <AsteroidStrike />
-        <SolarWeather />
-        <HoloSelector3D />
-        <WarpTunnel />
-        <EffectComposer multisampling={0}>
-          <Bloom intensity={0.62} luminanceThreshold={0.74} luminanceSmoothing={0.18} mipmapBlur />
-          <WarpPostEffects />
-          <Vignette offset={0.18} darkness={0.55} />
-        </EffectComposer>
       </Suspense>
+      <Suspense fallback={null}>
+        <Ship />
+      </Suspense>
+      <AsteroidStrike />
+      <SolarWeather />
+      <HoloSelector3D />
+      <WarpTunnel />
+      <EffectComposer multisampling={0}>
+        <Bloom intensity={0.62} luminanceThreshold={0.74} luminanceSmoothing={0.18} mipmapBlur />
+        <WarpPostEffects />
+        <Vignette offset={0.18} darkness={0.55} />
+      </EffectComposer>
     </Canvas>
   );
 }
@@ -49,7 +52,7 @@ export function CockpitOverlay() {
     <Canvas
       className="cockpit-overlay"
       dpr={[1, 1.35]}
-      camera={{ position: [0, 0.38, 0.55], fov: 72, near: 0.05, far: 120 }}
+      camera={{ position: COCKPIT_EYE_OFFSET.toArray(), fov: 72, near: 0.05, far: 120 }}
       gl={{ alpha: true, antialias: true }}
       onCreated={({ gl }) => gl.setClearColor(0x000000, 0)}
     >

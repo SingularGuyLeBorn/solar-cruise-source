@@ -14,38 +14,47 @@ void main() {
 }
 `;
 
-export function createSunMaterial() {
+export function createSunMaterial(map = null) {
   return new THREE.ShaderMaterial({
     uniforms: {
       uTime: { value: 0 },
+      uMap: { value: map },
+      uHasMap: { value: map ? 1 : 0 },
     },
     vertexShader: /* glsl */ `
       varying vec3 vPos;
       varying vec3 vNormal;
+      varying vec2 vUv;
       void main() {
         vPos = position;
+        vUv = uv;
         vNormal = normalize(normalMatrix * normal);
         gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
       }
     `,
     fragmentShader: /* glsl */ `
       uniform float uTime;
+      uniform sampler2D uMap;
+      uniform float uHasMap;
       varying vec3 vPos;
       varying vec3 vNormal;
+      varying vec2 vUv;
       ${NOISE_GLSL}
       void main() {
         vec3 p = normalize(vPos);
         float n = fbm3(p * 3.4 + vec3(0.0, uTime * 0.008, 0.0));
         float granule = fbm3(p * 26.0 + uTime * 0.05);
+        vec3 photo = texture2D(uMap, vUv).rgb;
+        vec3 fallback = mix(vec3(1.0, 0.26, 0.03), vec3(1.0, 0.7, 0.2), n * 0.72 + granule * 0.28);
+        vec3 base = mix(fallback, photo * 1.18 + vec3(0.18, 0.06, 0.0), uHasMap);
         float spot = smoothstep(0.55, 0.68, fbm3(p * 1.8 + vec3(8.0, 2.0, 4.0)));
-        vec3 base = mix(vec3(1.0, 0.26, 0.03), vec3(1.0, 0.7, 0.2), n * 0.72 + granule * 0.28);
         float fixedSpots = smoothstep(0.2, 0.08, distance(p, normalize(vec3(0.55, 0.22, 0.78))))
           + smoothstep(0.16, 0.06, distance(p, normalize(vec3(-0.42, 0.42, 0.62))))
           + smoothstep(0.12, 0.04, distance(p, normalize(vec3(0.18, -0.5, 0.72))));
-        base *= 1.0 - spot * 0.72 - min(0.85, fixedSpots) * 0.62;
+        base *= 1.0 - spot * 0.55 - min(0.85, fixedSpots) * 0.42;
         float limb = pow(1.0 - abs(dot(normalize(vNormal), vec3(0.0, 0.0, 1.0))), 1.2);
         base += vec3(1.0, 0.42, 0.08) * limb * 0.35;
-        gl_FragColor = vec4(base * 1.3, 1.0);
+        gl_FragColor = vec4(base * 1.18, 1.0);
       }
     `,
     toneMapped: false,

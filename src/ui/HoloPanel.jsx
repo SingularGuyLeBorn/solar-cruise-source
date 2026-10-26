@@ -148,10 +148,10 @@ export function HoloPanel() {
           </div>
           <div className="holo-nav-actions holo-nav-actions--single">
             <button type="button" className="primary" onClick={openFormGallery}>
-              打开馆藏库
+              打开馆藏库（B）
             </button>
           </div>
-          <small className="holo-nav-hint">点击左侧投影聚焦 · 滚轮切件 · 8 秒自动巡展</small>
+          <small className="holo-nav-hint">点击左侧投影聚焦 · B 馆藏库 · 滚轮切件 · 8 秒自动巡展</small>
         </>
       )}
     </div>

@@ -13,6 +13,8 @@ const startPosition = earthPosition
 const startMatrix = new Matrix4().lookAt(startPosition, earthPosition, new Vector3(0, 1, 0));
 const startQuaternion = new Quaternion().setFromRotationMatrix(startMatrix);
 
+export const COCKPIT_EYE_OFFSET = new Vector3(0, 0.56, 0.5);
+
 export const flightState = {
   position: startPosition,
   quaternion: startQuaternion,

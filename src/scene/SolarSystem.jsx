@@ -1,13 +1,14 @@
-import { useMemo, useRef, useState } from 'react';
-import { Html, Line, Stars, useGLTF, useTexture } from '@react-three/drei';
+import { Suspense, useMemo, useRef, useState } from 'react';
+import { Html, Line, Stars, useGLTF } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
-import { AdditiveBlending, Box3, MeshStandardMaterial, DoubleSide, Object3D, Quaternion, Vector3 } from 'three';
+import { AdditiveBlending, Box3, DoubleSide, Object3D, Quaternion, Vector3 } from 'three';
 import { PLANETS, SUN, COMETS } from '../data/solarSystem';
 import { MOONS, MOONS_BY_PARENT } from '../data/moons';
 import { LANDMARKS_BY_BODY } from '../data/landmarks';
 import { UNITS_PER_AU } from '../data/scale';
 import { orbitPoints, latLonToVector3 } from '../lib/orbits';
 import { radialGlowTexture } from '../lib/textures';
+import { useProgressiveTexture } from '../lib/progressiveTextures';
 import { createAtmosphereMaterial, createCloudMaterial, createEarthMaterial, createSunMaterial } from './materials';
 import { ApolloFootprint, ApolloLander, PerseveranceRover } from './NasaSurface';
 import { HyperionModel, MinorMoonRock, PhobosModel } from './MoonModels';
@@ -90,7 +91,7 @@ function GatedModel({ maxDistance = Infinity, children }) {
     const show = distance < maxDistance && alignment > 0.998 && !isOccluded(camera.position, temp, null, scratch);
     if (show !== visible) setVisible(show);
   });
-  return <group ref={anchor}>{visible ? children : null}</group>;
+  return <group ref={anchor}>{visible ? <Suspense fallback={null}>{children}</Suspense> : null}</group>;
 }
 
 function BodyLabel({ body, onClick, small = false }) {
@@ -128,55 +129,97 @@ function Orbit({ body, color, opacity = 0.2 }) {
   return <Line points={points} color={color} transparent opacity={opacity} lineWidth={1} depthWrite={false} />;
 }
 
-function TexturedSphere({ path, radius }) {
-  const texture = useTexture(publicPath(path));
+function TexturedSphere({ path, radius, bodyId, color }) {
+  const { texture } = useProgressiveTexture({
+    url: publicPath(path),
+    positionId: bodyId,
+    radius,
+  });
   return (
     <mesh>
       <sphereGeometry args={[radius, radius > 15 ? 56 : 40, radius > 15 ? 36 : 26]} />
-      <meshStandardMaterial map={texture} roughness={0.9} metalness={0.02} />
+      <meshStandardMaterial map={texture} color={texture ? '#ffffff' : color} roughness={0.9} metalness={0.02} />
     </mesh>
   );
 }
 
 function EarthSphere({ body, radius }) {
-  const [day, night, clouds] = useTexture([
-    publicPath(body.texture),
-    publicPath(body.nightTexture),
-    publicPath(body.cloudTexture),
-  ]);
-  const material = useMemo(() => createEarthMaterial(day, night), [day, night]);
-  const cloudMaterial = useMemo(() => createCloudMaterial(clouds), [clouds]);
+  const { texture: day } = useProgressiveTexture({
+    url: publicPath(body.texture),
+    positionId: body.id,
+    radius,
+    immediate: true,
+    hiResScale: 26,
+  });
+  const { texture: night } = useProgressiveTexture({
+    url: publicPath(body.nightTexture),
+    positionId: body.id,
+    radius,
+    immediate: true,
+    hiResScale: 26,
+  });
+  const { texture: clouds } = useProgressiveTexture({
+    url: publicPath(body.cloudTexture),
+    positionId: body.id,
+    radius,
+    immediate: true,
+    hiResScale: 26,
+  });
+  const material = useMemo(() => (day && night ? createEarthMaterial(day, night) : null), [day, night]);
+  const cloudMaterial = useMemo(() => (clouds ? createCloudMaterial(clouds) : null), [clouds]);
   const sunDirection = useMemo(() => new Vector3(1, 0, 0), []);
 
   useFrame(() => {
     const planetPos = worldState.positions.get(body.id);
     if (planetPos) sunDirection.copy(planetPos).multiplyScalar(-1).normalize();
-    material.uniforms.uSun.value.copy(sunDirection);
-    cloudMaterial.uniforms.uSun.value.copy(sunDirection);
+    if (material) material.uniforms.uSun.value.copy(sunDirection);
+    if (cloudMaterial) cloudMaterial.uniforms.uSun.value.copy(sunDirection);
   });
 
   return (
     <group>
-      <mesh>
-        <sphereGeometry args={[radius, 64, 40]} />
-        <primitive object={material} attach="material" />
-      </mesh>
-      <mesh scale={1.012}>
-        <sphereGeometry args={[radius, 64, 40]} />
-        <primitive object={cloudMaterial} attach="material" />
-      </mesh>
+      {material ? (
+        <mesh>
+          <sphereGeometry args={[radius, 64, 40]} />
+          <primitive object={material} attach="material" />
+        </mesh>
+      ) : (
+        <mesh>
+          <sphereGeometry args={[radius, 48, 32]} />
+          <meshStandardMaterial map={day} color={day ? '#ffffff' : body.color} roughness={0.82} metalness={0.02} />
+        </mesh>
+      )}
+      {cloudMaterial && (
+        <mesh scale={1.012}>
+          <sphereGeometry args={[radius, 64, 40]} />
+          <primitive object={cloudMaterial} attach="material" />
+        </mesh>
+      )}
     </group>
   );
 }
 
 function MarsSphere({ body, radius }) {
-  const [map, displacement] = useTexture([publicPath(body.texture), publicPath(body.displacementTexture)]);
+  const { texture: map, quality: mapQuality } = useProgressiveTexture({
+    url: publicPath(body.texture),
+    positionId: body.id,
+    radius,
+    hiResScale: 22,
+  });
+  const { texture: displacement, quality: displacementQuality } = useProgressiveTexture({
+    url: publicPath(body.displacementTexture),
+    positionId: body.id,
+    radius,
+    hiResScale: 22,
+  });
+  const detailed = map && displacement && mapQuality >= 2 && displacementQuality >= 2;
   return (
     <mesh>
-      <sphereGeometry args={[radius, 128, 64]} />
+      <sphereGeometry args={[radius, detailed ? 128 : 48, detailed ? 64 : 32]} />
       <meshStandardMaterial
         map={map}
-        displacementMap={displacement}
+        color={map ? '#ffffff' : body.color}
+        displacementMap={detailed ? displacement : null}
         displacementScale={body.displacementScale ?? 0.04}
         displacementBias={-0.02}
         roughness={0.95}
@@ -187,15 +230,22 @@ function MarsSphere({ body, radius }) {
 }
 
 function RingSystem({ body, radius }) {
-  const texture = useTexture(publicPath(body.ringTexture));
+  const { texture } = useProgressiveTexture({
+    url: publicPath(body.ringTexture),
+    positionId: body.id,
+    radius,
+    previewScale: 40,
+    hiResScale: 12,
+  });
   return (
     <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
       <ringGeometry args={[radius * 1.35, radius * 2.35, 160, 1]} />
       <meshBasicMaterial
         map={texture}
+        color={texture ? '#ffffff' : (body.ringColor ?? '#cbb894')}
         transparent
         side={DoubleSide}
-        opacity={0.92}
+        opacity={texture ? 0.92 : 0.16}
         depthWrite={false}
         toneMapped={false}
       />
@@ -314,11 +364,20 @@ function Landmarks({ body, radius }) {
 }
 
 function TexturedMoon({ moon }) {
-  const texture = useTexture(publicPath(moon.texture));
+  const { texture } = useProgressiveTexture({
+    url: publicPath(moon.texture),
+    positionId: moon.id,
+    radius: moon.visualRadius,
+  });
   return (
     <mesh>
       <sphereGeometry args={[moon.visualRadius, moon.major ? 48 : 24, moon.major ? 32 : 16]} />
-      <meshStandardMaterial map={texture} roughness={0.92} metalness={0.01} />
+      <meshStandardMaterial
+        map={texture}
+        color={texture ? '#ffffff' : (moon.color ?? '#8b8177')}
+        roughness={0.92}
+        metalness={0.01}
+      />
     </mesh>
   );
 }
@@ -419,7 +478,7 @@ function Planet({ body }) {
             ) : body.displacementTexture ? (
               <MarsSphere body={body} radius={body.visualRadius} />
             ) : (
-              <TexturedSphere path={body.texture} radius={body.visualRadius} />
+              <TexturedSphere path={body.texture} radius={body.visualRadius} bodyId={body.id} color={body.color} />
             )}
             <Landmarks body={body} radius={body.visualRadius} />
           </group>
@@ -475,7 +534,14 @@ function SunFlare({ index, texture }) {
 }
 
 function Sun() {
-  const material = useMemo(() => createSunMaterial(), []);
+  const { texture } = useProgressiveTexture({
+    url: publicPath(SUN.texture),
+    positionId: SUN.id,
+    radius: SUN.visualRadius,
+    immediate: true,
+    hiResScale: 20,
+  });
+  const material = useMemo(() => createSunMaterial(texture), [texture]);
   const glow = useMemo(() => radialGlowTexture(), []);
   const flares = useMemo(() => Array.from({ length: 4 }, (_, index) => index), []);
 
@@ -536,33 +602,29 @@ function Sun() {
   );
 }
 
-function Comet({ comet }) {
-  const group = useRef();
-  const tail = useRef();
-  const nucleusRef = useRef();
-  const glow = useMemo(() => radialGlowTexture(), []);
-  const sixtySeven = useGLTF('/models/comets/67p.glb').scene;
-  const tempel = useGLTF('/models/comets/tempel1.glb').scene;
-  const nucleus = useMemo(() => {
-    const source = comet.id === 'churyumov' ? sixtySeven : tempel;
-    const clone = source.clone(true);
+function CometNucleus({ comet }) {
+  const { scene } = useGLTF(comet.id === 'churyumov' ? '/models/comets/67p.glb' : '/models/comets/tempel1.glb');
+  const model = useMemo(() => {
+    const clone = scene.clone(true);
+    clone.updateMatrixWorld(true);
     const box = new Box3().setFromObject(clone);
     const size = box.getSize(new Vector3());
     clone.scale.setScalar(0.86 / (Math.max(size.x, size.y, size.z) || 1));
     clone.updateMatrixWorld(true);
     const scaled = new Box3().setFromObject(clone);
-    const center = scaled.getCenter(new Vector3());
-    clone.position.sub(center);
-    clone.traverse((object) => {
-      if (!object.isMesh) return;
-      object.material = new MeshStandardMaterial({
-        color: comet.id === 'churyumov' ? '#3d362e' : '#453b31',
-        roughness: 0.97,
-        metalness: 0.02,
-      });
-    });
+    clone.position.sub(scaled.getCenter(new Vector3()));
     return clone;
-  }, [comet.id, sixtySeven, tempel]);
+  }, [comet.id, scene]);
+  return <primitive object={model} />;
+}
+
+function Comet({ comet }) {
+  const group = useRef();
+  const tail = useRef();
+  const nucleusRef = useRef();
+  const nearRef = useRef(false);
+  const [showNucleus, setShowNucleus] = useState(false);
+  const glow = useMemo(() => radialGlowTexture(), []);
   const tailPositions = useMemo(() => {
     let seed = 7331;
     const random = () => {
@@ -579,7 +641,7 @@ function Comet({ comet }) {
     }
     return positions;
   }, []);
-  useFrame((_, delta) => {
+  useFrame(({ camera }, delta) => {
     const position = worldState.positions.get(comet.id);
     if (position && group.current) {
       group.current.position.copy(position);
@@ -588,12 +650,21 @@ function Comet({ comet }) {
         const away = position.clone().normalize();
         tail.current.quaternion.setFromUnitVectors(new Vector3(0, 1, 0), away);
       }
+      const near = camera.position.distanceTo(position) < Math.max(comet.visualRadius * 600, 120);
+      if (near !== nearRef.current) {
+        nearRef.current = near;
+        setShowNucleus(near);
+      }
     }
   });
   return (
     <group ref={group}>
       <group ref={nucleusRef}>
-        <primitive object={nucleus} />
+        {showNucleus && (
+          <Suspense fallback={null}>
+            <CometNucleus comet={comet} />
+          </Suspense>
+        )}
       </group>
       <sprite scale={[3.2, 3.2, 1]}>
         <spriteMaterial
@@ -627,18 +698,27 @@ function Comet({ comet }) {
 
 function AsteroidBelt() {
   const mesh = useRef();
-  const count = 90;
+  const count = 240;
+  const beltInnerAu = 2.08;
+  const beltOuterAu = 3.28;
   const { scene } = useGLTF('/models/helion/asteroid_0.glb');
-  const asset = useMemo(() => {
-    let geometry = null;
-    let material = null;
+  const { geometry, material } = useMemo(() => {
+    let sourceGeometry = null;
+    let sourceMaterial = null;
     scene.traverse((object) => {
-      if (object.isMesh && !geometry) {
-        geometry = object.geometry;
-        material = object.material;
+      if (object.isMesh && !sourceGeometry) {
+        sourceGeometry = object.geometry.clone();
+        sourceMaterial = object.material;
       }
     });
-    return { geometry, material };
+    if (sourceGeometry) {
+      sourceGeometry.computeBoundingSphere();
+      const radius = sourceGeometry.boundingSphere?.radius || 1;
+      const scale = 0.55 / radius;
+      sourceGeometry.scale(scale, scale, scale);
+      sourceGeometry.computeBoundingSphere();
+    }
+    return { geometry: sourceGeometry, material: sourceMaterial };
   }, [scene]);
   const dummy = useMemo(() => new Object3D(), []);
   const instances = useMemo(() => {
@@ -651,8 +731,8 @@ function AsteroidBelt() {
     for (let i = 0; i < count; i++) {
       seeds.push({
         angle: random() * Math.PI * 2,
-        radius: 1980 + random() * 380,
-        y: (random() - 0.5) * 7,
+        radius: (beltInnerAu + random() * (beltOuterAu - beltInnerAu)) * UNITS_PER_AU,
+        y: (random() - 0.5) * 1400,
         scale: 0.5 + random() * 1.5,
         tilt: random() * Math.PI,
       });
@@ -666,11 +746,11 @@ function AsteroidBelt() {
       return seed / 4294967296;
     };
     const positions = new Float32Array(1200 * 3);
-    for (let i = 0; i < 1200; i++) {
+    for (let i = 0; i < 2400; i++) {
       const angle = random() * Math.PI * 2;
-      const radius = 1940 + random() * 460;
+      const radius = (beltInnerAu + random() * (beltOuterAu - beltInnerAu)) * UNITS_PER_AU;
       positions[i * 3] = Math.cos(angle) * radius;
-      positions[i * 3 + 1] = (random() - 0.5) * 8;
+      positions[i * 3 + 1] = (random() - 0.5) * 1800;
       positions[i * 3 + 2] = Math.sin(angle) * radius;
     }
     return positions;
@@ -689,10 +769,10 @@ function AsteroidBelt() {
     mesh.current.instanceMatrix.needsUpdate = true;
   });
 
-  if (!asset.geometry) return null;
+  if (!geometry || !material) return null;
   return (
     <>
-      <instancedMesh ref={mesh} args={[asset.geometry, asset.material, count]} />
+      <instancedMesh ref={mesh} args={[geometry, material, count]} />
       <points>
         <bufferGeometry>
           <bufferAttribute attach="attributes-position" args={[dust, 3]} />
@@ -769,12 +849,10 @@ export function SolarSystem() {
           <Comet comet={comet} />
         </group>
       ))}
-      <AsteroidBelt />
+      <Suspense fallback={null}>
+        <AsteroidBelt />
+      </Suspense>
       <KuiperBelt />
     </>
   );
 }
-
-useGLTF.preload('/models/helion/asteroid_0.glb');
-useGLTF.preload('/models/comets/67p.glb');
-useGLTF.preload('/models/comets/tempel1.glb');

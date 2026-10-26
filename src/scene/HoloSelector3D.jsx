@@ -61,7 +61,7 @@ export function HoloSelector3D() {
     return () => {
       camera.remove(group);
     };
-  }, [camera, scene]);
+  }, [camera, scene, open]);
 
   useEffect(() => {
     particleMaterial.color.set(body.color ?? '#9fe6ff');
@@ -95,6 +95,8 @@ export function HoloSelector3D() {
     }
     if (particles.current) particles.current.rotation.z += delta * 0.08;
   });
+
+  if (!open) return null;
 
   return (
     <group ref={root} name="holo-selector-root" visible={false}>

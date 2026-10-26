@@ -8,12 +8,14 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "postbuild": "node scripts/prune-dist.mjs",
     "preview": "vite preview",
     "postinstall": "node scripts/copy-cesium.mjs",
     "prebuild": "node scripts/copy-cesium.mjs",
     "format": "prettier --write \"src/**/*.{js,jsx,css}\" \"scripts/**/*.mjs\" \"*.{json,html,md}\"",
     "format:check": "prettier --check \"src/**/*.{js,jsx,css}\" \"scripts/**/*.mjs\" \"*.{json,html,md}\"",
-    "check": "npm run format:check && npm run build"
+    "verify:fast": "node scripts/verify-fast.mjs",
+    "check": "npm run format:check && npm run build && npm run verify:fast"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.21.0",
@@ -28,8 +30,13 @@
     "zustand": "5.0.3"
   },
   "devDependencies": {
+    "@gltf-transform/core": "^4.5.1",
+    "@gltf-transform/extensions": "^4.5.1",
+    "@gltf-transform/functions": "^4.5.1",
     "@vitejs/plugin-react": "6.1.2",
+    "meshoptimizer": "^1.3.0",
     "prettier": "3.3.3",
+    "sharp": "^0.35.5",
     "vite": "8.3.5"
   },
   "author": "solar-cruise contributors",

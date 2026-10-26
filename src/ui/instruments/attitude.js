@@ -1,4 +1,5 @@
 import { Quaternion, Vector3 } from 'three';
+import { COCKPIT_EYE_OFFSET } from '../../state/flightState';
 
 export const COCKPIT_FOV = 72;
 export const DEG = 180 / Math.PI;
@@ -15,7 +16,7 @@ export function createAttitudeScratch() {
     up: new Vector3(),
     right: new Vector3(),
     shipForward: new Vector3(),
-    eye: new Vector3(0, 0.38, 0.55),
+    eye: COCKPIT_EYE_OFFSET.clone(),
     cameraPosition: new Vector3(),
     toPoint: new Vector3(),
     pitchDeg: 0,
@@ -34,7 +35,7 @@ export function sampleAttitude(scratch, shipQuaternion, shipPosition, lookYaw, l
   scratch.up.set(0, 1, 0).applyQuaternion(scratch.camera);
   scratch.right.set(1, 0, 0).applyQuaternion(scratch.camera);
   scratch.shipForward.set(0, 0, -1).applyQuaternion(shipQuaternion);
-  scratch.cameraPosition.copy(shipPosition).add(scratch.eye.set(0, 0.38, 0.55).applyQuaternion(shipQuaternion));
+  scratch.cameraPosition.copy(shipPosition).add(scratch.eye.copy(COCKPIT_EYE_OFFSET).applyQuaternion(shipQuaternion));
 
   scratch.pitchDeg = Math.asin(Math.max(-1, Math.min(1, scratch.forward.y))) * DEG;
   scratch.rollDeg = Math.atan2(scratch.right.y, scratch.up.y) * DEG;

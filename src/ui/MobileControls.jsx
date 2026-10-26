@@ -243,6 +243,9 @@ export function MobileControls() {
             <button type="button" onClick={() => runAndClose(() => useFlightStore.getState().toggleSelector())}>
               星图
             </button>
+            <button type="button" onClick={() => runAndClose(() => useFlightStore.getState().toggleJump())}>
+              目的地
+            </button>
             <button type="button" onClick={() => runAndClose(() => useFlightStore.getState().toggleHolo())}>
               投影
             </button>

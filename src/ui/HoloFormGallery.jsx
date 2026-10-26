@@ -68,7 +68,7 @@ export function HoloFormGallery() {
 
           <div className="holo-gallery-toolbar">
             <span className="holo-form-scan-note">
-              3D 点云 · 右侧索引独立滚动 · 来源见 <code>public/artifacts/CREDITS.md</code>
+              3D 点云 · B / Esc 关闭 · 来源见 <code>public/artifacts/CREDITS.md</code>
             </span>
             <button type="button" className={`holo-form-auto ${formAuto ? 'active' : ''}`} onClick={toggleHoloFormAuto}>
               AUTO {formAuto ? 'ON' : 'OFF'}

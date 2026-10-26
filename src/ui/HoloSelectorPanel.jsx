@@ -72,6 +72,7 @@ export function HoloSelectorPanel() {
             <button
               key={item.id}
               type="button"
+              data-body-id={item.id}
               className={item.id === body.id ? 'active' : ''}
               onClick={() => setPreview(item.id)}
             >
@@ -88,6 +89,7 @@ export function HoloSelectorPanel() {
             <button
               key={item.id}
               type="button"
+              data-body-id={item.id}
               className={item.id === body.id ? 'active' : ''}
               onClick={() => setPreview(item.id)}
             >
@@ -104,6 +106,7 @@ export function HoloSelectorPanel() {
             <button
               key={item.id}
               type="button"
+              data-body-id={item.id}
               className={item.id === body.id ? 'active' : ''}
               onClick={() => setPreview(item.id)}
             >
@@ -120,9 +123,19 @@ export function HoloSelectorPanel() {
         <button type="button" className="primary" onClick={() => jumpTo(body.id)}>
           超光速跃迁
         </button>
+        <button
+          type="button"
+          className="holo-selector-all"
+          onClick={() => useFlightStore.getState().toggleJump()}
+          title="全部目的地：行星 / 卫星 / 彗星（Y）"
+        >
+          全部目的地 <kbd>Y</kbd>
+        </button>
       </div>
 
-      <small className="holo-selector-hint">空闲 9 秒自动巡游 · 滚轮 / 触控切换 3D 行星节点 · J 关闭，Space 跃迁</small>
+      <small className="holo-selector-hint">
+        空闲 9 秒自动巡游 · 滚轮 / 触控切换 3D 行星节点 · J 关闭，Space 跃迁 · Y 全部目的地
+      </small>
     </div>
   );
 }

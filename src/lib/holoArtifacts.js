@@ -42,9 +42,11 @@ function sampleArtifact(packed, count) {
 }
 
 export async function loadArtifactPositions(artifact, count) {
-  const key = `${artifact.id}:${count}`;
+  const usePreview = count <= 8192;
+  const asset = usePreview ? artifact.asset.replace(/\.bin$/, '.preview.bin') : artifact.asset;
+  const key = `${artifact.id}:${count}:${usePreview ? 'preview' : 'full'}`;
   if (artifactCache.has(key)) return artifactCache.get(key);
-  const promise = fetch(`/${artifact.asset}`, { cache: 'force-cache' })
+  const promise = fetch(`/${asset}`, { cache: 'force-cache' })
     .then((response) => {
       if (!response.ok) throw new Error(`artifact ${artifact.id}: ${response.status}`);
       return response.arrayBuffer();

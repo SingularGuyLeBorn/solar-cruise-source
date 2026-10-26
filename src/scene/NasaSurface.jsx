@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
-import { useGLTF, useTexture } from '@react-three/drei';
+import { useGLTF } from '@react-three/drei';
 import { Box3, DoubleSide, Vector3 } from 'three';
+import { useProgressiveTexture } from '../lib/progressiveTextures';
 
 function normalizeModel(scene, targetSize) {
   const clone = scene.clone(true);
@@ -31,14 +32,24 @@ export function ApolloLander({ size = 0.22, rotation = 0 }) {
 }
 
 export function ApolloFootprint({ size = 0.075 }) {
-  const texture = useTexture('/textures/apollo-footprint.png');
+  const { texture } = useProgressiveTexture({
+    url: '/textures/apollo-footprint.png',
+    positionId: 'moon',
+    radius: 0.76,
+    previewScale: 6,
+    hiResScale: 3,
+  });
   return (
     <mesh rotation={[-Math.PI / 2, 0, Math.PI / 4]} position={[0, 0.008, 0]}>
       <planeGeometry args={[size, size]} />
-      <meshBasicMaterial map={texture} transparent opacity={0.92} depthWrite={false} side={DoubleSide} />
+      <meshBasicMaterial
+        map={texture}
+        color={texture ? '#ffffff' : '#8b8177'}
+        transparent
+        opacity={texture ? 0.92 : 0.18}
+        depthWrite={false}
+        side={DoubleSide}
+      />
     </mesh>
   );
 }
-
-useGLTF.preload('/models/nasa/perseverance.glb');
-useGLTF.preload('/models/nasa/apollo-lunar-module.glb');

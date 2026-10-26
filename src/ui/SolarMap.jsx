@@ -86,6 +86,9 @@ export function SolarMap() {
           y2={CENTER + MAP_RADIUS + 5}
           className="solar-map-axis"
         />
+        <g className="solar-map-sweep" aria-hidden="true">
+          <line x1={CENTER} y1={CENTER} x2={CENTER + MAP_RADIUS} y2={CENTER} />
+        </g>
         {bodies.map((body) => {
           const position = worldState.positions.get(body.id);
           if (!position) return null;
@@ -127,6 +130,9 @@ export function SolarMap() {
             d={`M 0 -${shipSize} L ${shipSize * 0.7} ${shipSize * 0.7} L 0 ${shipSize * 0.35} L -${shipSize * 0.7} ${shipSize * 0.7} Z`}
           />
         </g>
+        <text x={ship.x + 7} y={ship.y + 3} className="solar-map-you">
+          YOU
+        </text>
       </svg>
       <div className="solar-map-foot">
         <button className="solar-map-open" type="button" onClick={toggleSelector}>

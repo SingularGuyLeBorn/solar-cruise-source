@@ -25,5 +25,3 @@ export function SurveyRover({ size = 0.16, rotation = 0 }) {
   }, [scene, size]);
   return <primitive object={model} rotation={[0, rotation, 0]} />;
 }
-
-useGLTF.preload('/models/lunar/survey-rover.glb');

@@ -1,4 +1,4 @@
-import { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useGLTF } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber';
 import { CockpitScreen } from '../ui/CockpitScreens';
@@ -18,6 +18,7 @@ export function HelionCockpit({ visible = true, compact = false }) {
       object.castShadow = true;
       object.receiveShadow = true;
       const source = Array.isArray(object.material) ? object.material : [object.material];
+      const meshMaterial = (source[0]?.name || '').toLowerCase();
       const materials = source.map((material) => {
         const next = material.clone();
         const name = (material.name || '').toLowerCase();
@@ -86,6 +87,10 @@ export function HelionCockpit({ visible = true, compact = false }) {
         return next;
       });
       object.material = Array.isArray(object.material) ? materials : materials[0];
+      // This canopy strut crosses the eye line as a broad translucent band.
+      if ((object.parent?.name ?? '') === 'Cockpit' && meshMaterial.includes('frame')) {
+        object.visible = false;
+      }
       if (compact) {
         object.visible = false;
       }
@@ -101,6 +106,10 @@ export function HelionCockpit({ visible = true, compact = false }) {
     });
     return { yokeNode, throttleNode };
   }, [cockpit]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') window.__cruiseCockpitLoadedAt = performance.now();
+  }, []);
 
   useFrame(() => {
     if (cockpitRoot.current) {
@@ -143,19 +152,6 @@ export function HelionCockpit({ visible = true, compact = false }) {
           <>
             {showInstruments && (
               <>
-                <mesh position={[0, 0.18, -0.52]}>
-                  <boxGeometry args={[1.35, 0.38, 0.035]} />
-                  <meshStandardMaterial
-                    color="#09141c"
-                    roughness={0.2}
-                    metalness={0.2}
-                    emissive="#06131a"
-                    emissiveIntensity={0.5}
-                    transparent
-                    opacity={0.06}
-                    depthWrite={false}
-                  />
-                </mesh>
                 <CockpitScreen
                   kind="nav"
                   position={[-0.4, 0.17, -0.495]}
@@ -192,5 +188,3 @@ export function HelionCockpit({ visible = true, compact = false }) {
     </group>
   );
 }
-
-useGLTF.preload('/models/helion/cockpit.glb');

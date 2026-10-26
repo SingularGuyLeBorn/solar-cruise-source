@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { Suspense, useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { AdditiveBlending } from 'three';
 import { useFlightStore } from '../state/useFlightStore';
@@ -120,12 +120,18 @@ export function Ship() {
   return (
     <group ref={group}>
       <group ref={shipBody}>
-        <HelionShip />
-        <ShipDetails />
+        {viewMode !== 'cockpit' && (
+          <Suspense fallback={null}>
+            <HelionShip />
+            <ShipDetails />
+          </Suspense>
+        )}
       </group>
       <WarpStreaks />
       {shield && viewMode !== 'cockpit' && <IonShield />}
-      <HelionCockpit visible={viewMode === 'cockpit' && !selectorOpen} />
+      <Suspense fallback={null}>
+        <HelionCockpit visible={viewMode === 'cockpit' && !selectorOpen} />
+      </Suspense>
     </group>
   );
 }

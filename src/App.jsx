@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
+import { useProgress } from '@react-three/drei';
 import { SpaceScene, CockpitOverlay } from './scene/SpaceScene';
 import { CesiumEarth } from './earth/CesiumEarth';
 import { HUD } from './ui/HUD';
 import { useFlightStore } from './state/useFlightStore';
-import { flightState } from './state/flightState';
+import { COCKPIT_EYE_OFFSET, flightState } from './state/flightState';
+import { markBootReady } from './lib/progressiveTextures';
 import { Matrix4, Quaternion, Vector3 } from 'three';
 import { getPosition, worldState } from './state/worldState';
 import { SHIP_VARIANT } from './state/shipVariant';
@@ -12,6 +14,18 @@ import { MOON_BY_ID } from './data/moons';
 import { LANDMARKS_BY_BODY } from './data/landmarks';
 import { latLonToVector3 } from './lib/orbits';
 import { ensureImpactAudio } from './lib/impactAudio';
+
+function AssetStatus() {
+  const { active, progress } = useProgress();
+  const label = active ? `座舱与贴图后台载入 ${Math.round(progress)}%` : '座舱已就绪 · 重资源继续后台渐进载入';
+  return (
+    <div className={`boot-load ${active ? 'boot-load--active' : ''}`}>
+      <span className="boot-load__dot" />
+      {label}
+      <em>无需等待全部资源，现在即可进入</em>
+    </div>
+  );
+}
 
 function BootOverlay({ onStart }) {
   return (
@@ -50,6 +64,8 @@ function BootOverlay({ onStart }) {
           <span>转向</span>
           <kbd>V</kbd>
           <span>视角</span>
+          <kbd>B</kbd>
+          <span>馆藏库</span>
           <kbd>Space</kbd>
           <span>跳跃</span>
           <kbd>C</kbd>
@@ -59,7 +75,11 @@ function BootOverlay({ onStart }) {
           进入驾驶舱
           <small>ENTER COCKPIT</small>
         </button>
-        <p className="boot-note">点击画面锁定鼠标环视，方向键控制飞船；Esc 释放。首次载入贴图需要几秒。</p>
+        <AssetStatus />
+        <p className="boot-note">
+          鼠标不会被锁定：直接拖动画面环视、点击 HUD 按钮操作。按 B（或点「馆藏
+          B」）打开馆藏库；右上角航位图随时显示你在太阳系的位置。
+        </p>
       </div>
     </div>
   );
@@ -88,7 +108,7 @@ export default function App() {
           const cameraPoint = targetPosition.clone().add(offset);
           const matrix = new Matrix4().lookAt(cameraPoint, targetPosition, new Vector3(0, 1, 0));
           const quaternion = new Quaternion().setFromRotationMatrix(matrix);
-          const eye = new Vector3(0, 0.38, 0.55).applyQuaternion(quaternion);
+          const eye = COCKPIT_EYE_OFFSET.clone().applyQuaternion(quaternion);
           flightState.position.copy(cameraPoint).sub(eye);
           flightState.quaternion.copy(quaternion);
           flightState.speedC = 0;
@@ -134,7 +154,7 @@ export default function App() {
             .addScaledVector(tangent, cameraDistance * 0.18);
           const matrix = new Matrix4().lookAt(cameraPoint, point, normal);
           const quaternion = new Quaternion().setFromRotationMatrix(matrix);
-          const eye = new Vector3(0, 0.38, 0.55).applyQuaternion(quaternion);
+          const eye = COCKPIT_EYE_OFFSET.clone().applyQuaternion(quaternion);
           flightState.position.copy(cameraPoint).sub(eye);
           flightState.quaternion.copy(quaternion);
           flightState.speedC = 0;
@@ -153,14 +173,9 @@ export default function App() {
 
   const start = () => {
     ensureImpactAudio();
+    markBootReady();
     setBooted(true);
-    addLog('先驱者号已进入自由飞行。曲率引擎待命。');
-  };
-
-  const lockPointer = (event) => {
-    if (event.pointerType === 'mouse' && event.target.tagName === 'CANVAS') {
-      event.target.requestPointerLock?.();
-    }
+    addLog('先驱者号已进入自由飞行。曲率引擎待命。B 打开馆藏库。');
   };
 
   return (
@@ -168,7 +183,6 @@ export default function App() {
       <div
         className="space-layer"
         style={{ visibility: earthMode ? 'hidden' : 'visible', pointerEvents: earthMode ? 'none' : 'auto' }}
-        onPointerDown={lockPointer}
       >
         <SpaceScene active={!earthMode} />
       </div>
@@ -180,7 +194,7 @@ export default function App() {
       )}
       <HUD />
       {!booted && <BootOverlay onStart={start} />}
-      <div className="pointer-hint">点击画面锁定鼠标环视 · 方向键控船 · Esc 释放</div>
+      <div className="pointer-hint">拖动画面环视 · 鼠标不锁定 · 点击 HUD 按钮 · B 馆藏库</div>
     </div>
   );
 }

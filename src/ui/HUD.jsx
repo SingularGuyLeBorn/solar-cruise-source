@@ -83,41 +83,68 @@ export function HUD() {
             className={state.viewMode === 'cockpit' ? 'active' : ''}
             type="button"
             onClick={() => state.setView('cockpit')}
+            title="驾驶舱视角（V 切换）"
           >
-            驾驶舱
+            驾驶舱 <kbd>V</kbd>
           </button>
           <button
             className={state.viewMode === 'chase' ? 'active' : ''}
             type="button"
             onClick={() => state.setView('chase')}
+            title="追尾视角（V 切换）"
           >
             第三人称
           </button>
-          <button className={state.shield ? 'active' : ''} type="button" onClick={state.toggleShield}>
-            护盾 {state.shield ? 'ON' : 'OFF'}
+          <button
+            className={state.shield ? 'active' : ''}
+            type="button"
+            onClick={state.toggleShield}
+            title="离子护盾（H）"
+          >
+            护盾 {state.shield ? 'ON' : 'OFF'} <kbd>H</kbd>
           </button>
-          <button className={state.engineOn ? 'active' : ''} type="button" onClick={state.toggleEngine}>
-            引擎 {state.engineOn ? 'ON' : 'OFF'}
+          <button
+            className={state.engineOn ? 'active' : ''}
+            type="button"
+            onClick={state.toggleEngine}
+            title="引擎点火（E）"
+          >
+            引擎 {state.engineOn ? 'ON' : 'OFF'} <kbd>E</kbd>
           </button>
-          <button className={state.holo.open ? 'active' : ''} type="button" onClick={state.toggleHolo}>
-            投影
+          <button
+            className={state.holo.open ? 'active' : ''}
+            type="button"
+            onClick={state.toggleHolo}
+            title="驾驶舱投影（O）"
+          >
+            投影 <kbd>O</kbd>
+          </button>
+          <button
+            className="hud-actions__desktop hud-actions__gallery"
+            type="button"
+            onClick={state.toggleFormGallery}
+            title="馆藏库（B）"
+          >
+            馆藏 <kbd>B</kbd>
           </button>
           <button
             className={`hud-actions__desktop ${state.selector.open ? 'active' : ''}`}
             type="button"
             onClick={state.toggleSelector}
+            title="全息星图（J）"
           >
-            星图
+            星图 <kbd>J</kbd>
           </button>
-          <button type="button" onClick={() => state.toggleHelp()}>
-            操作
+          <button type="button" onClick={() => state.toggleHelp()} title="飞行手册（P）">
+            操作 <kbd>P</kbd>
           </button>
           <button
             className={state.earthMode ? 'active' : ''}
             type="button"
             onClick={() => state.setEarthMode(!state.earthMode)}
+            title="Cesium 地球（C）"
           >
-            {state.earthMode ? '返回太空' : 'CESIUM 地球'}
+            {state.earthMode ? '返回太空' : 'CESIUM 地球'} <kbd>C</kbd>
           </button>
         </nav>
       </header>
@@ -184,7 +211,13 @@ export function HUD() {
               <button type="button" onClick={() => state.setWarp(Math.min(9, state.warp + 1))}>
                 WARP +
               </button>
-              <button type="button" onClick={() => state.setThrottle(0)}>
+              <button
+                type="button"
+                onClick={() => {
+                  state.setThrottle(0);
+                  state.setWarp(0);
+                }}
+              >
                 ALL STOP
               </button>
             </div>
@@ -237,7 +270,7 @@ export function HUD() {
           <span>
             {state.earthMode
               ? 'Cesium 地球 · 鼠标拖拽旋转 / 滚轮缩放'
-              : '鼠标 360° 环视 · W 朝视线转向推进 · S 反推 · 滚轮切投影 · J 星图 · V 视角'}
+              : '拖动 360° 环视（鼠标不锁定） · W 朝视线转向推进 · B 馆藏库 · 滚轮切投影 · J 星图'}
           </span>
         </div>
       </div>
@@ -283,7 +316,7 @@ export function HUD() {
       {state.earthMode && (
         <div className="earth-badge">
           <span className="eyebrow">CESIUM EARTH / 地球轨道视图</span>
-          <strong>实时卫星影像 · 鼠标拖拽环绕</strong>
+          <strong>实时卫星影像 · 拖拽环绕 / 双指缩放</strong>
           <small>影像 © Esri / Maxar / Earthstar Geographics · 服务条款适用</small>
         </div>
       )}
@@ -338,6 +371,7 @@ function JumpMenu({ state }) {
                   <button
                     key={body.id}
                     type="button"
+                    data-destination-id={body.id}
                     className={state.targetId === body.id ? 'selected' : ''}
                     onClick={() => state.jumpTo(body.id)}
                   >
@@ -366,6 +400,8 @@ function HelpPanel({ state }) {
     ['Space', '跳跃到当前目标'],
     ['滚轮', '切换当前投影：馆藏下一件 / 太阳系下一个天体'],
     ['J', '打开 / 关闭全屏全息星图'],
+    ['Y', '全部目的地：行星 / 卫星 / 彗星'],
+    ['B', '打开 / 关闭馆藏投影库（也可点右上角「馆藏 B」）'],
     ['V', '驾驶舱 / 第三人称'],
     ['H', '离子护盾开 / 关（默认关闭）'],
     ['E', '引擎点火 / 关闭'],

@@ -1,8 +1,8 @@
 import { useEffect, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { useTexture } from '@react-three/drei';
 import { AdditiveBlending, BufferAttribute, BufferGeometry, Color, ShaderMaterial } from 'three';
 import { SUN } from '../data/solarSystem';
+import { thumbPath, useStaticTexture } from '../lib/progressiveTextures';
 
 const publicPath = (path) => (path?.startsWith('/') ? path : `/${path}`);
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
@@ -284,7 +284,7 @@ function useParticleMaterial(pointSize = 1.4, opacity = 1) {
 }
 
 function TexturedPlanetParticles({ body, count, pointSize, opacity, rings, scale }) {
-  const texture = useTexture(publicPath(body.texture));
+  const texture = useStaticTexture(thumbPath(publicPath(body.texture)));
   const geometry = useMemo(() => buildPlanetCloud(body, texture, count, rings), [body, texture, count, rings]);
   const material = useParticleMaterial(pointSize, opacity);
   return <points geometry={geometry} material={material} scale={scale} />;

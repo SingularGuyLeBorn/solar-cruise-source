@@ -8,9 +8,8 @@ export function HoloAutoCycle() {
     const timer = window.setInterval(() => {
       if (document.hidden) return;
       const state = useFlightStore.getState();
-      const visible = state.selector.open || (state.holo.open && state.viewMode === 'cockpit');
-      if (!visible || state.earthMode || state.helpOpen || state.jumpOpen || state.holo.formGalleryOpen) return;
-      if (!state.selector.open && state.holo.activeProjector !== 'solar') return;
+      if (!state.selector.open) return;
+      if (state.earthMode || state.helpOpen || state.jumpOpen || state.holo.formGalleryOpen) return;
       if (Date.now() - state.selector.lastInputAt < IDLE_MS) return;
       state.cycleSelector(1);
     }, 1000);

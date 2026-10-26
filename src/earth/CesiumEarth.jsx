@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 const ARCGIS_IMAGERY = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
 const ARCGIS_TERRAIN = 'https://elevation3d.arcgis.com/arcgis/rest/services/WorldElevation3D/Terrain3D/ImageServer';
 const GIBS_NIGHT =
-  'https://gibs.earthdata.nasa.gov/wmts/epsg4326/best/VIIRS_CityLights_2012/default/2012-01-01/250m/{TileMatrix}/{TileRow}/{TileCol}.jpg';
+  'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/VIIRS_CityLights_2012/default/GoogleMapsCompatible_Level8/{TileMatrix}/{TileRow}/{TileCol}.jpeg';
 
 export function CesiumEarth() {
   const container = useRef(null);
@@ -12,6 +12,9 @@ export function CesiumEarth() {
   useEffect(() => {
     let viewer = null;
     let cancelled = false;
+    let removeTileListener = null;
+    let readyFallback = null;
+    let readyDelay = null;
 
     (async () => {
       const Cesium = await import('cesium');
@@ -51,7 +54,7 @@ export function CesiumEarth() {
             layer: 'VIIRS_CityLights_2012',
             style: 'default',
             format: 'image/jpeg',
-            tileMatrixSetID: '250m',
+            tileMatrixSetID: 'GoogleMapsCompatible_Level8',
             maximumLevel: 8,
             credit: 'NASA GIBS · VIIRS City Lights',
           }),
@@ -84,6 +87,18 @@ export function CesiumEarth() {
         orientation: { heading: 0, pitch: -1.45, roll: 0 },
       });
 
+      let sawTileWork = false;
+      const markReady = () => {
+        if (!cancelled) setStatus('ready');
+      };
+      removeTileListener = viewer.scene.globe.tileLoadProgressEvent.addEventListener((remaining) => {
+        if (remaining > 0) sawTileWork = true;
+        else if (sawTileWork && !readyDelay) {
+          readyDelay = setTimeout(markReady, 400);
+        }
+      });
+      readyFallback = setTimeout(markReady, 15000);
+
       const cities = [
         ['北京', 116.4, 39.9],
         ['上海', 121.47, 31.23],
@@ -108,8 +123,6 @@ export function CesiumEarth() {
           },
         });
       }
-
-      if (!cancelled) setStatus('ready');
     })().catch((error) => {
       if (!cancelled) {
         console.error(error);
@@ -119,6 +132,9 @@ export function CesiumEarth() {
 
     return () => {
       cancelled = true;
+      if (removeTileListener) removeTileListener();
+      if (readyFallback) clearTimeout(readyFallback);
+      if (readyDelay) clearTimeout(readyDelay);
       if (viewer && !viewer.isDestroyed()) viewer.destroy();
       viewer = null;
     };
