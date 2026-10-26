@@ -1,5 +1,6 @@
 import { useEffect, useMemo } from 'react';
 import { PLANETS, BODY_BY_ID } from '../data/solarSystem';
+import { UNITS_PER_AU } from '../data/scale';
 import { MOON_BY_ID } from '../data/moons';
 import { flightState } from '../state/flightState';
 import { useFlightStore } from '../state/useFlightStore';
@@ -7,10 +8,9 @@ import { getPosition, worldState } from '../state/worldState';
 import { formatClock, formatDateFromDays, formatTimeFromDays, relativisticSummary } from '../lib/relativity';
 import { screenTexture } from '../lib/textures';
 
-const CYAN = '#7fe7ff';
-const AMBER = '#ffbd72';
-const DIM = '#2e6070';
-const BG = '#031018';
+const CYAN = '#cbd7d4';
+const AMBER = '#d8b48a';
+const DIM = '#617476';
 
 function box(ctx, x, y, w, h, stroke = DIM, fill = null) {
   ctx.beginPath();
@@ -25,14 +25,14 @@ function box(ctx, x, y, w, h, stroke = DIM, fill = null) {
 }
 
 function bar(ctx, x, y, w, h, value, color = CYAN) {
-  box(ctx, x, y, w, h, DIM, 'rgba(8, 30, 40, 0.7)');
+  box(ctx, x, y, w, h, DIM, 'rgba(10, 22, 24, 0.6)');
   ctx.fillStyle = color;
   ctx.fillRect(x + 2, y + 2, Math.max(0, Math.min(1, value)) * (w - 4), h - 4);
 }
 
 function label(ctx, text, x, y, color = CYAN, size = 14, align = 'left') {
   ctx.fillStyle = color;
-  ctx.font = `${size}px "IBM Plex Mono", "Inter", monospace`;
+  ctx.font = `500 ${size}px "Manrope", "PingFang SC", "Microsoft YaHei", sans-serif`;
   ctx.textAlign = align;
   ctx.fillText(text, x, y);
 }
@@ -42,26 +42,27 @@ function targetInfo(targetId) {
 }
 
 function unitsToAu(distance) {
-  return distance / 110;
+  return distance / UNITS_PER_AU;
 }
 
 function drawFrame(ctx, title, subtitle) {
-  ctx.fillStyle = BG;
-  ctx.fillRect(0, 0, 512, 320);
+  ctx.clearRect(0, 0, 512, 320);
   const gradient = ctx.createLinearGradient(0, 0, 512, 320);
-  gradient.addColorStop(0, 'rgba(9, 38, 52, 0.8)');
-  gradient.addColorStop(1, 'rgba(2, 10, 18, 0.9)');
+  gradient.addColorStop(0, 'rgba(18, 32, 33, 0.46)');
+  gradient.addColorStop(1, 'rgba(4, 9, 11, 0.62)');
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, 512, 320);
   for (let y = 0; y < 320; y += 4) {
-    ctx.fillStyle = 'rgba(80, 200, 240, 0.025)';
+    ctx.fillStyle = 'rgba(196, 224, 218, 0.018)';
     ctx.fillRect(0, y, 512, 1);
   }
-  box(ctx, 8, 8, 496, 304, 'rgba(70, 190, 220, 0.45)');
-  label(ctx, title, 24, 36, CYAN, 20);
-  label(ctx, subtitle, 24, 58, DIM, 12);
+  box(ctx, 8, 8, 496, 304, 'rgba(196, 220, 214, 0.28)');
+  ctx.fillStyle = CYAN;
+  ctx.font = '300 22px "Fraunces", "Songti SC", serif';
+  ctx.fillText(title, 24, 38);
+  label(ctx, subtitle, 24, 58, DIM, 10);
   const time = new Date().toISOString().slice(11, 19);
-  label(ctx, `UTC ${time}`, 488, 36, DIM, 12, 'right');
+  label(ctx, `UTC ${time}`, 488, 36, DIM, 9, 'right');
 }
 
 function drawNav(ctx) {
@@ -99,20 +100,25 @@ function drawNav(ctx) {
   });
   box(ctx, 24, 292, 464, 8, DIM, 'rgba(7,30,40,0.8)');
   ctx.fillStyle = CYAN;
-  ctx.fillRect(26, 294, 460 * Math.min(1, state.throttle), 4);
+  ctx.fillRect(26, 294, 460 * Math.min(1, Math.abs(state.throttle)), 4);
 }
 
 function drawFlight(ctx) {
   const state = useFlightStore.getState();
   drawFrame(ctx, 'FLIGHT / 飞行', 'CURVATURE DRIVE');
   const summary = relativisticSummary(state.speedC, state.warp);
-  const speed = state.warp > 0 ? `WARP ${state.warp.toFixed(1)}` : `${(state.speedC * 100).toFixed(2)} % c`;
+  const speed =
+    state.warp > 0
+      ? `WARP ${state.warp.toFixed(1)}`
+      : state.speedC < -0.0005
+        ? `REV ${(Math.abs(state.speedC) * 100).toFixed(2)} % c`
+        : `${(state.speedC * 100).toFixed(2)} % c`;
   label(ctx, 'VELOCITY', 24, 94, DIM, 12);
   label(ctx, speed, 24, 134, AMBER, 32);
   label(ctx, summary.label, 24, 160, CYAN, 13);
-  label(ctx, 'THROTTLE', 24, 196, DIM, 12);
-  bar(ctx, 24, 206, 230, 18, state.throttle, CYAN);
-  label(ctx, `${Math.round(state.throttle * 100)}%`, 266, 220, CYAN, 13);
+  label(ctx, state.throttle < 0 ? 'REVERSE' : 'THROTTLE', 24, 196, DIM, 12);
+  bar(ctx, 24, 206, 230, 18, Math.abs(state.throttle), CYAN);
+  label(ctx, `${Math.round(Math.abs(state.throttle) * 100)}%`, 266, 220, CYAN, 13);
   label(ctx, 'WARP', 24, 246, DIM, 12);
   bar(ctx, 24, 256, 230, 12, state.warp / 9, AMBER);
   label(ctx, `${state.warp.toFixed(1)} / 9`, 266, 266, AMBER, 13);
@@ -157,6 +163,21 @@ function drawSystems(ctx) {
   );
 }
 
+function drawSolar(ctx) {
+  const state = useFlightStore.getState();
+  const solar = state.solar;
+  const flare = solar.event === 'FLARE';
+  drawFrame(ctx, 'SOLAR / 太阳活动', 'HELIOSPHERIC WEATHER');
+  label(ctx, 'EVENT', 24, 94, DIM, 12);
+  label(ctx, flare ? `FLARE ${solar.flareClass}` : 'QUIET', 24, 126, flare ? AMBER : CYAN, 24);
+  label(ctx, `SOLAR WIND  ${solar.wind} km/s`, 24, 164, CYAN, 13);
+  label(ctx, `SUNSPOT GROUPS  ${solar.sunspots}`, 24, 188, CYAN, 13);
+  label(ctx, `EM INTERFERENCE  ${Math.round(solar.interference * 100)}%`, 24, 212, flare ? AMBER : CYAN, 13);
+  bar(ctx, 24, 228, 300, 10, solar.interference, flare ? AMBER : CYAN);
+  bar(ctx, 24, 248, 300, 10, solar.activity, CYAN);
+  label(ctx, flare ? 'CME 接近 · 建议降低自动化依赖' : '太阳活动平稳 · 护盾自动调谐', 24, 288, DIM, 11);
+}
+
 function drawScan(ctx) {
   const state = useFlightStore.getState();
   const body = state.scanResult ?? targetInfo(state.nearId);
@@ -187,6 +208,7 @@ export function CockpitScreen({ kind, position, rotation = [0, 0, 0], size = [1.
       if (kind === 'nav') drawNav(ctx);
       else if (kind === 'flight') drawFlight(ctx);
       else if (kind === 'systems') drawSystems(ctx);
+      else if (kind === 'solar') drawSolar(ctx);
       else drawScan(ctx);
       screen.texture.needsUpdate = true;
     };
@@ -199,11 +221,11 @@ export function CockpitScreen({ kind, position, rotation = [0, 0, 0], size = [1.
     <group position={position} rotation={rotation}>
       <mesh position={[0, 0, -0.012]}>
         <planeGeometry args={[size[0] + 0.06, size[1] + 0.06]} />
-        <meshBasicMaterial color="#1a3542" toneMapped={false} />
+        <meshBasicMaterial color="#1a3542" transparent opacity={0.06} depthWrite={false} toneMapped={false} />
       </mesh>
       <mesh>
         <planeGeometry args={size} />
-        <meshBasicMaterial map={screen.texture} toneMapped={false} />
+        <meshBasicMaterial map={screen.texture} transparent opacity={0.92} depthWrite={false} toneMapped={false} />
       </mesh>
     </group>
   );

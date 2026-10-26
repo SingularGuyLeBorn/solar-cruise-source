@@ -1,48 +1,125 @@
 import { useMemo, useRef, useState } from 'react';
-import { Html, Line, Stars, useTexture } from '@react-three/drei';
+import { Html, Line, Stars, useGLTF, useTexture } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
-import {
-  AdditiveBlending,
-  DodecahedronGeometry,
-  DoubleSide,
-  MeshStandardMaterial,
-  Object3D,
-  Quaternion,
-  Vector3,
-} from 'three';
+import { AdditiveBlending, Box3, MeshStandardMaterial, DoubleSide, Object3D, Quaternion, Vector3 } from 'three';
 import { PLANETS, SUN, COMETS } from '../data/solarSystem';
-import { MOONS_BY_PARENT } from '../data/moons';
+import { MOONS, MOONS_BY_PARENT } from '../data/moons';
 import { LANDMARKS_BY_BODY } from '../data/landmarks';
+import { UNITS_PER_AU } from '../data/scale';
 import { orbitPoints, latLonToVector3 } from '../lib/orbits';
-import { footprintTexture, radialGlowTexture, stormTexture } from '../lib/textures';
+import { radialGlowTexture } from '../lib/textures';
 import { createAtmosphereMaterial, createCloudMaterial, createEarthMaterial, createSunMaterial } from './materials';
+import { ApolloFootprint, ApolloLander, PerseveranceRover } from './NasaSurface';
+import { HyperionModel, MinorMoonRock, PhobosModel } from './MoonModels';
+import { SurveyRover } from './LunarRover';
 import { useFlightStore } from '../state/useFlightStore';
 import { updateWorld, worldState } from '../state/worldState';
 
 const DEG = Math.PI / 180;
 const publicPath = (path) => (path?.startsWith('/') ? path : `/${path}`);
 
-function GatedHtml({ maxDistance, children, ...props }) {
+const OCCLUDERS = [SUN, ...PLANETS, ...MOONS.filter((moon) => moon.major)].map((body) => ({
+  id: body.id,
+  radius: body.visualRadius,
+}));
+
+function isOccluded(cameraPosition, target, skipId, scratch) {
+  scratch.ray.subVectors(target, cameraPosition);
+  const lengthSq = scratch.ray.lengthSq();
+  if (lengthSq < 1e-8) return false;
+  for (const occluder of OCCLUDERS) {
+    if (occluder.id === skipId) continue;
+    const center = worldState.positions.get(occluder.id);
+    if (!center) continue;
+    scratch.toCenter.subVectors(center, cameraPosition);
+    const t = scratch.toCenter.dot(scratch.ray) / lengthSq;
+    if (t <= 0 || t >= 0.985) continue;
+    scratch.closest.copy(cameraPosition).addScaledVector(scratch.ray, t);
+    const radius = occluder.radius * 0.995;
+    if (scratch.closest.distanceToSquared(center) < radius * radius) return true;
+  }
+  return false;
+}
+
+function GatedHtml({ maxDistance, occludeId, children, ...props }) {
+  const anchor = useRef();
+  const [visible, setVisible] = useState(false);
+  const selectorOpen = useFlightStore((state) => state.selector.open);
+  const temp = useMemo(() => new Vector3(), []);
+  const scratch = useRef({
+    ray: new Vector3(),
+    toCenter: new Vector3(),
+    closest: new Vector3(),
+    view: new Vector3(),
+  }).current;
+  useFrame(({ camera }) => {
+    if (!anchor.current) return;
+    if (selectorOpen) {
+      if (visible) setVisible(false);
+      return;
+    }
+    anchor.current.getWorldPosition(temp);
+    camera.getWorldDirection(scratch.view);
+    const inFront = scratch.view.dot(scratch.ray.subVectors(temp, camera.position)) > 0;
+    const show =
+      inFront &&
+      camera.position.distanceTo(temp) < maxDistance &&
+      !isOccluded(camera.position, temp, occludeId, scratch);
+    if (show !== visible) setVisible(show);
+  });
+  return <group ref={anchor}>{visible && !selectorOpen ? <Html {...props}>{children}</Html> : null}</group>;
+}
+
+function GatedModel({ maxDistance = Infinity, children }) {
   const anchor = useRef();
   const [visible, setVisible] = useState(false);
   const temp = useMemo(() => new Vector3(), []);
+  const scratch = useRef({
+    ray: new Vector3(),
+    toCenter: new Vector3(),
+    closest: new Vector3(),
+    view: new Vector3(),
+  }).current;
   useFrame(({ camera }) => {
     if (!anchor.current) return;
     anchor.current.getWorldPosition(temp);
-    const show = camera.position.distanceTo(temp) < maxDistance;
+    camera.getWorldDirection(scratch.view);
+    const offset = scratch.ray.subVectors(temp, camera.position);
+    const distance = offset.length();
+    const alignment = distance > 0 ? scratch.view.dot(offset) / distance : 0;
+    const show = distance < maxDistance && alignment > 0.998 && !isOccluded(camera.position, temp, null, scratch);
     if (show !== visible) setVisible(show);
   });
-  return <group ref={anchor}>{visible ? <Html {...props}>{children}</Html> : null}</group>;
+  return <group ref={anchor}>{visible ? children : null}</group>;
 }
 
 function BodyLabel({ body, onClick, small = false }) {
+  const maxDistance =
+    body.type === 'star'
+      ? 8_000_000
+      : body.type === 'planet'
+        ? 2_000_000
+        : body.type === 'dwarf'
+          ? 1_000_000
+          : 1_000_000;
   return (
-    <Html center zIndexRange={[20, 0]} style={{ pointerEvents: 'auto' }}>
-      <button className={`body-label ${small ? 'body-label--small' : ''}`} type="button" onClick={onClick}>
+    <GatedHtml
+      maxDistance={maxDistance}
+      occludeId={body.id}
+      center
+      zIndexRange={[20, 0]}
+      style={{ pointerEvents: 'auto' }}
+    >
+      <button
+        className={`body-label ${small ? 'body-label--small' : ''}`}
+        type="button"
+        onClick={onClick}
+        style={{ transform: 'translateY(-34px)' }}
+      >
         <span>{body.en ?? body.name}</span>
         <em>{body.name}</em>
       </button>
-    </Html>
+    </GatedHtml>
   );
 }
 
@@ -55,7 +132,7 @@ function TexturedSphere({ path, radius }) {
   const texture = useTexture(publicPath(path));
   return (
     <mesh>
-      <sphereGeometry args={[radius, 72, 48]} />
+      <sphereGeometry args={[radius, radius > 15 ? 56 : 40, radius > 15 ? 36 : 26]} />
       <meshStandardMaterial map={texture} roughness={0.9} metalness={0.02} />
     </mesh>
   );
@@ -81,22 +158,30 @@ function EarthSphere({ body, radius }) {
   return (
     <group>
       <mesh>
-        <sphereGeometry args={[radius, 96, 64]} />
+        <sphereGeometry args={[radius, 64, 40]} />
         <primitive object={material} attach="material" />
       </mesh>
       <mesh scale={1.012}>
-        <sphereGeometry args={[radius, 96, 64]} />
+        <sphereGeometry args={[radius, 64, 40]} />
         <primitive object={cloudMaterial} attach="material" />
       </mesh>
     </group>
   );
 }
 
-function ProceduralSphere({ body, radius }) {
+function MarsSphere({ body, radius }) {
+  const [map, displacement] = useTexture([publicPath(body.texture), publicPath(body.displacementTexture)]);
   return (
     <mesh>
-      <sphereGeometry args={[radius, 48, 32]} />
-      <meshStandardMaterial color={body.color} roughness={0.95} metalness={0.01} />
+      <sphereGeometry args={[radius, 128, 64]} />
+      <meshStandardMaterial
+        map={map}
+        displacementMap={displacement}
+        displacementScale={body.displacementScale ?? 0.04}
+        displacementBias={-0.02}
+        roughness={0.95}
+        metalness={0.01}
+      />
     </mesh>
   );
 }
@@ -118,67 +203,53 @@ function RingSystem({ body, radius }) {
   );
 }
 
-function FootprintMarker({ size = 0.1 }) {
-  const texture = useMemo(() => footprintTexture(), []);
+function ThinRings({ radius, rings, color }) {
   return (
-    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.006, 0]}>
-      <planeGeometry args={[size, size]} />
-      <meshBasicMaterial map={texture} transparent opacity={0.82} depthWrite={false} />
-    </mesh>
-  );
-}
-
-function Rover({ scale = 1, accent = '#ffb04a' }) {
-  return (
-    <group scale={scale}>
-      <mesh position={[0, 0.16, 0]}>
-        <boxGeometry args={[0.42, 0.18, 0.62]} />
-        <meshStandardMaterial color="#d7d1c2" roughness={0.55} metalness={0.45} />
-      </mesh>
-      <mesh position={[0, 0.27, -0.06]}>
-        <boxGeometry args={[0.28, 0.03, 0.36]} />
-        <meshStandardMaterial color={accent} emissive={accent} emissiveIntensity={0.2} roughness={0.35} />
-      </mesh>
-      <mesh position={[0.16, 0.36, -0.1]}>
-        <cylinderGeometry args={[0.02, 0.02, 0.36, 8]} />
-        <meshStandardMaterial color="#c8c4b8" />
-      </mesh>
-      <mesh position={[0.16, 0.55, -0.1]}>
-        <sphereGeometry args={[0.07, 12, 8]} />
-        <meshStandardMaterial color="#9ad9ff" emissive="#4bb6e8" emissiveIntensity={0.5} />
-      </mesh>
-      {[-0.22, 0.22].map((x) =>
-        [-0.2, 0.2].map((z) => (
-          <mesh key={`${x}-${z}`} position={[x, 0.1, z]} rotation={[0, 0, Math.PI / 2]}>
-            <cylinderGeometry args={[0.11, 0.11, 0.06, 12]} />
-            <meshStandardMaterial color="#3e3a35" roughness={0.9} metalness={0.2} />
-          </mesh>
-        )),
-      )}
+    <group rotation={[-Math.PI / 2, 0, 0]}>
+      {rings.map((scale, index) => (
+        <mesh key={scale}>
+          <ringGeometry args={[radius * scale, radius * (scale + 0.012), 128, 1]} />
+          <meshBasicMaterial
+            color={color}
+            transparent
+            opacity={0.36 - index * 0.06}
+            side={DoubleSide}
+            depthWrite={false}
+            toneMapped={false}
+          />
+        </mesh>
+      ))}
     </group>
   );
 }
 
-function StormMarker({ scale, radius, id = 'grs' }) {
-  const texture = useMemo(() => stormTexture(id), [id]);
-  return (
-    <mesh
-      rotation={[-Math.PI / 2, 0, 0]}
-      position={[0, 0.01, 0]}
-      scale={[radius * 0.9 * scale, radius * 0.42 * scale, 1]}
-    >
-      <planeGeometry args={[1, 1]} />
-      <meshBasicMaterial map={texture} transparent depthWrite={false} opacity={0.95} toneMapped={false} />
-    </mesh>
-  );
-}
-
-function SurfaceMarker({ landmark, radius }) {
+function SurfaceMarker({ landmark, radius, bodyId }) {
   const position = useMemo(() => latLonToVector3(landmark.lat, landmark.lon, radius * 1.01), [landmark, radius]);
   const quaternion = useMemo(() => {
     const normal = position.clone().normalize();
     return new Quaternion().setFromUnitVectors(new Vector3(0, 1, 0), normal);
   }, [position]);
+
+  const hasLander = landmark.id === 'apollo11' || landmark.id === 'apollo17';
+  const labelLift =
+    {
+      apollo11: 70,
+      apollo17: 98,
+      luna21: 126,
+      change4: 70,
+      survey: 70,
+      curiosity: 54,
+      perseverance: 54,
+    }[landmark.id] ?? 26;
+  const labelShift =
+    {
+      apollo17: 170,
+      luna21: -170,
+      change4: 90,
+      survey: 150,
+      curiosity: -70,
+      perseverance: 70,
+    }[landmark.id] ?? 0;
 
   return (
     <group position={position} quaternion={quaternion}>
@@ -190,30 +261,36 @@ function SurfaceMarker({ landmark, radius }) {
         <sphereGeometry args={[0.014, 8, 6]} />
         <meshBasicMaterial color="#ffbd72" toneMapped={false} />
       </mesh>
-      {landmark.kind === 'footprints' && <FootprintMarker size={radius * 0.075} />}
-      {landmark.kind === 'rover' && (
-        <group position={[0, 0.004, 0]}>
-          <Rover
-            scale={radius * 0.022 * (landmark.scale ?? 1)}
-            accent={landmark.id === 'curiosity' ? '#ffb04a' : '#78d8ff'}
-          />
+
+      {landmark.kind === 'footprints' && (
+        <group position={[radius * 0.3, 0, -radius * 0.16]}>
+          <ApolloFootprint size={radius * 0.14} />
         </group>
       )}
-      {landmark.kind === 'volcano' && (
-        <group>
-          <mesh position={[0, radius * 0.06, 0]}>
-            <cylinderGeometry args={[radius * 0.06, radius * 0.22, radius * 0.12, 48]} />
-            <meshStandardMaterial color="#9b4c30" roughness={0.95} />
-          </mesh>
-          <mesh position={[0, radius * 0.125, 0]}>
-            <cylinderGeometry args={[radius * 0.02, radius * 0.032, radius * 0.01, 24]} />
-            <meshStandardMaterial color="#351812" roughness={1} />
-          </mesh>
-        </group>
+      {hasLander && (
+        <GatedModel maxDistance={radius * 1.8}>
+          <group position={[radius * 0.08, 0, radius * 0.04]}>
+            <ApolloLander size={radius * 0.2} rotation={0.4} />
+          </group>
+        </GatedModel>
       )}
-      {landmark.kind === 'storm' && <StormMarker scale={landmark.scale ?? 1} radius={radius} id={landmark.id} />}
+      {landmark.kind === 'rover' && bodyId === 'moon' && landmark.id === 'survey' && (
+        <GatedModel maxDistance={radius * 1.8}>
+          <group position={[0, 0, 0]} rotation={[0, 2.1, 0]}>
+            <SurveyRover size={radius * 0.24} />
+          </group>
+        </GatedModel>
+      )}
+      {landmark.kind === 'rover' && bodyId === 'mars' && landmark.id === 'perseverance' && (
+        <GatedModel maxDistance={radius * 1.8}>
+          <group position={[0, 0.004, 0]} rotation={[0, 0.6, 0]}>
+            <PerseveranceRover size={radius * 0.11} />
+          </group>
+        </GatedModel>
+      )}
+
       <GatedHtml maxDistance={radius * 22} center zIndexRange={[10, 0]} style={{ pointerEvents: 'none' }}>
-        <div className="surface-label">
+        <div className="surface-label" style={{ transform: `translate(${labelShift}px, -${labelLift}px)` }}>
           <strong>{landmark.name}</strong>
           <span>{landmark.en}</span>
         </div>
@@ -230,7 +307,7 @@ function Landmarks({ body, radius }) {
       {list
         .filter((item) => item.kind !== 'rings')
         .map((item) => (
-          <SurfaceMarker key={item.id} landmark={item} radius={radius} />
+          <SurfaceMarker key={item.id} landmark={item} radius={radius} bodyId={body.id} />
         ))}
     </>
   );
@@ -240,32 +317,34 @@ function TexturedMoon({ moon }) {
   const texture = useTexture(publicPath(moon.texture));
   return (
     <mesh>
-      <sphereGeometry args={[moon.visualRadius, 48, 32]} />
+      <sphereGeometry args={[moon.visualRadius, moon.major ? 48 : 24, moon.major ? 32 : 16]} />
       <meshStandardMaterial map={texture} roughness={0.92} metalness={0.01} />
     </mesh>
   );
 }
 
 function MoonSurface({ moon }) {
+  if (moon.id === 'phobos') return <PhobosModel moon={moon} />;
+  if (moon.id === 'hyperion') return <HyperionModel moon={moon} />;
   if (moon.texture) return <TexturedMoon moon={moon} />;
-  return (
-    <mesh>
-      <sphereGeometry args={[moon.visualRadius, moon.major ? 48 : 16, moon.major ? 32 : 12]} />
-      <meshStandardMaterial color={moon.color} roughness={0.96} metalness={0.01} />
-    </mesh>
-  );
+  return <MinorMoonRock moon={moon} />;
 }
 
 function MoonObject({ moon }) {
   const group = useRef();
   const spin = useRef();
-  useFrame(() => {
+  useFrame(({ camera }) => {
     const local = worldState.localPositions.get(moon.id);
     if (local && group.current) group.current.position.copy(local);
+    if (group.current && !moon.major) {
+      const world = worldState.positions.get(moon.id);
+      group.current.visible =
+        Boolean(world) && camera.position.distanceTo(world) < Math.max(90, moon.visualRadius * 160);
+    }
     if (spin.current) {
       const local = worldState.localPositions.get(moon.id);
       if (moon.id === 'moon' && local) {
-        spin.current.rotation.y = Math.atan2(local.x, local.z) + Math.PI;
+        spin.current.rotation.y = Math.atan2(local.z, -local.x);
       } else {
         const period = Math.abs(moon.periodDays) || 1;
         spin.current.rotation.y = (worldState.days / period) * Math.PI * 2 * (moon.retrograde ? -1 : 1);
@@ -282,6 +361,7 @@ function MoonObject({ moon }) {
         {moon.major && (
           <GatedHtml
             maxDistance={moon.visualRadius * 20 + 8}
+            occludeId={moon.id}
             center
             zIndexRange={[8, 0]}
             style={{ pointerEvents: 'auto' }}
@@ -292,19 +372,6 @@ function MoonObject({ moon }) {
           </GatedHtml>
         )}
       </group>
-      {moon.major && (
-        <Line
-          points={Array.from({ length: 129 }, (_, index) => {
-            const angle = (index / 128) * Math.PI * 2;
-            return new Vector3(Math.cos(angle) * moon.orbitRadius, 0, Math.sin(angle) * moon.orbitRadius);
-          })}
-          color="#4f6b82"
-          transparent
-          opacity={0.15}
-          lineWidth={0.7}
-          depthWrite={false}
-        />
-      )}
     </>
   );
 }
@@ -346,14 +413,16 @@ function Planet({ body }) {
     <group ref={group}>
       <group rotation={[0, 0, (body.axialTilt ?? 0) * DEG]}>
         <group ref={spin}>
-          {body.id === 'earth' ? (
-            <EarthSphere body={body} radius={body.visualRadius} />
-          ) : body.texture ? (
-            <TexturedSphere path={body.texture} radius={body.visualRadius} />
-          ) : (
-            <ProceduralSphere body={body} radius={body.visualRadius} />
-          )}
-          <Landmarks body={body} radius={body.visualRadius} />
+          <group scale={body.shapeScale ?? [1, 1, 1]}>
+            {body.id === 'earth' ? (
+              <EarthSphere body={body} radius={body.visualRadius} />
+            ) : body.displacementTexture ? (
+              <MarsSphere body={body} radius={body.visualRadius} />
+            ) : (
+              <TexturedSphere path={body.texture} radius={body.visualRadius} />
+            )}
+            <Landmarks body={body} radius={body.visualRadius} />
+          </group>
         </group>
         {atmosphereMaterial && (
           <mesh scale={1.025}>
@@ -362,6 +431,7 @@ function Planet({ body }) {
           </mesh>
         )}
         {body.ringTexture && <RingSystem body={body} radius={body.visualRadius} />}
+        {body.thinRings && <ThinRings radius={body.visualRadius} rings={body.thinRings} color={body.ringColor} />}
       </group>
       <Moons body={body} />
       <BodyLabel body={body} onClick={() => useFlightStore.getState().setTarget(body.id)} />
@@ -416,26 +486,26 @@ function Sun() {
   return (
     <group>
       <mesh>
-        <sphereGeometry args={[SUN.visualRadius, 96, 64]} />
+        <sphereGeometry args={[SUN.visualRadius, 64, 40]} />
         <primitive object={material} attach="material" />
       </mesh>
-      <sprite scale={[SUN.visualRadius * 4.5, SUN.visualRadius * 4.5, 1]}>
+      <sprite scale={[SUN.visualRadius * 1.4, SUN.visualRadius * 1.4, 1]}>
         <spriteMaterial
           map={glow}
           color="#ff9a3c"
           transparent
-          opacity={0.62}
+          opacity={0.5}
           blending={AdditiveBlending}
           depthWrite={false}
           toneMapped={false}
         />
       </sprite>
-      <sprite scale={[SUN.visualRadius * 9, SUN.visualRadius * 9, 1]}>
+      <sprite scale={[SUN.visualRadius * 2, SUN.visualRadius * 2, 1]}>
         <spriteMaterial
           map={glow}
           color="#ff5a12"
           transparent
-          opacity={0.18}
+          opacity={0.12}
           blending={AdditiveBlending}
           depthWrite={false}
           toneMapped={false}
@@ -445,7 +515,14 @@ function Sun() {
         <SunFlare key={index} index={index} texture={glow} />
       ))}
       <pointLight color="#ffd4a0" intensity={3.4} distance={0} decay={0} />
-      <Html center distanceFactor={50} zIndexRange={[20, 0]} style={{ pointerEvents: 'auto' }}>
+      <GatedHtml
+        maxDistance={Infinity}
+        occludeId="sun"
+        center
+        distanceFactor={50}
+        zIndexRange={[20, 0]}
+        style={{ pointerEvents: 'auto' }}
+      >
         <button
           className="body-label body-label--sun"
           type="button"
@@ -454,7 +531,7 @@ function Sun() {
           <span>THE SUN</span>
           <em>太阳</em>
         </button>
-      </Html>
+      </GatedHtml>
     </group>
   );
 }
@@ -462,11 +539,51 @@ function Sun() {
 function Comet({ comet }) {
   const group = useRef();
   const tail = useRef();
+  const nucleusRef = useRef();
   const glow = useMemo(() => radialGlowTexture(), []);
-  useFrame(() => {
+  const sixtySeven = useGLTF('/models/comets/67p.glb').scene;
+  const tempel = useGLTF('/models/comets/tempel1.glb').scene;
+  const nucleus = useMemo(() => {
+    const source = comet.id === 'churyumov' ? sixtySeven : tempel;
+    const clone = source.clone(true);
+    const box = new Box3().setFromObject(clone);
+    const size = box.getSize(new Vector3());
+    clone.scale.setScalar(0.86 / (Math.max(size.x, size.y, size.z) || 1));
+    clone.updateMatrixWorld(true);
+    const scaled = new Box3().setFromObject(clone);
+    const center = scaled.getCenter(new Vector3());
+    clone.position.sub(center);
+    clone.traverse((object) => {
+      if (!object.isMesh) return;
+      object.material = new MeshStandardMaterial({
+        color: comet.id === 'churyumov' ? '#3d362e' : '#453b31',
+        roughness: 0.97,
+        metalness: 0.02,
+      });
+    });
+    return clone;
+  }, [comet.id, sixtySeven, tempel]);
+  const tailPositions = useMemo(() => {
+    let seed = 7331;
+    const random = () => {
+      seed = (seed * 1664525 + 1013904223) % 4294967296;
+      return seed / 4294967296;
+    };
+    const positions = new Float32Array(240 * 3);
+    for (let i = 0; i < 240; i++) {
+      const distance = 0.3 + random() * 6.2;
+      const spread = distance * 0.09;
+      positions[i * 3] = (random() - 0.5) * spread;
+      positions[i * 3 + 1] = distance;
+      positions[i * 3 + 2] = (random() - 0.5) * spread;
+    }
+    return positions;
+  }, []);
+  useFrame((_, delta) => {
     const position = worldState.positions.get(comet.id);
     if (position && group.current) {
       group.current.position.copy(position);
+      if (nucleusRef.current) nucleusRef.current.rotation.y += delta * 0.035;
       if (tail.current) {
         const away = position.clone().normalize();
         tail.current.quaternion.setFromUnitVectors(new Vector3(0, 1, 0), away);
@@ -475,10 +592,9 @@ function Comet({ comet }) {
   });
   return (
     <group ref={group}>
-      <mesh>
-        <sphereGeometry args={[0.28, 16, 12]} />
-        <meshStandardMaterial color="#d9e9f2" emissive="#9ed8ff" emissiveIntensity={1.4} />
-      </mesh>
+      <group ref={nucleusRef}>
+        <primitive object={nucleus} />
+      </group>
       <sprite scale={[3.2, 3.2, 1]}>
         <spriteMaterial
           map={glow}
@@ -490,17 +606,19 @@ function Comet({ comet }) {
         />
       </sprite>
       <group ref={tail}>
-        <mesh position={[0, 3.2, 0]}>
-          <coneGeometry args={[0.55, 6.4, 16, 1, true]} />
-          <meshBasicMaterial
+        <points>
+          <bufferGeometry>
+            <bufferAttribute attach="attributes-position" args={[tailPositions, 3]} />
+          </bufferGeometry>
+          <pointsMaterial
             color={comet.tailColor}
+            size={0.07}
             transparent
-            opacity={0.16}
-            side={DoubleSide}
+            opacity={0.42}
             blending={AdditiveBlending}
             depthWrite={false}
           />
-        </mesh>
+        </points>
       </group>
       <BodyLabel body={comet} onClick={() => useFlightStore.getState().setTarget(comet.id)} small />
     </group>
@@ -509,9 +627,19 @@ function Comet({ comet }) {
 
 function AsteroidBelt() {
   const mesh = useRef();
-  const count = 1400;
-  const material = useMemo(() => new MeshStandardMaterial({ color: '#817262', roughness: 1, metalness: 0.05 }), []);
-  const geometry = useMemo(() => new DodecahedronGeometry(0.11, 0), []);
+  const count = 90;
+  const { scene } = useGLTF('/models/helion/asteroid_0.glb');
+  const asset = useMemo(() => {
+    let geometry = null;
+    let material = null;
+    scene.traverse((object) => {
+      if (object.isMesh && !geometry) {
+        geometry = object.geometry;
+        material = object.material;
+      }
+    });
+    return { geometry, material };
+  }, [scene]);
   const dummy = useMemo(() => new Object3D(), []);
   const instances = useMemo(() => {
     const seeds = [];
@@ -523,13 +651,29 @@ function AsteroidBelt() {
     for (let i = 0; i < count; i++) {
       seeds.push({
         angle: random() * Math.PI * 2,
-        radius: 196 + random() * 42,
+        radius: 1980 + random() * 380,
         y: (random() - 0.5) * 7,
-        scale: 0.35 + random() * 1.8,
+        scale: 0.5 + random() * 1.5,
         tilt: random() * Math.PI,
       });
     }
     return seeds;
+  }, []);
+  const dust = useMemo(() => {
+    let seed = 591;
+    const random = () => {
+      seed = (seed * 1664525 + 1013904223) % 4294967296;
+      return seed / 4294967296;
+    };
+    const positions = new Float32Array(1200 * 3);
+    for (let i = 0; i < 1200; i++) {
+      const angle = random() * Math.PI * 2;
+      const radius = 1940 + random() * 460;
+      positions[i * 3] = Math.cos(angle) * radius;
+      positions[i * 3 + 1] = (random() - 0.5) * 8;
+      positions[i * 3 + 2] = Math.sin(angle) * radius;
+    }
+    return positions;
   }, []);
 
   useFrame(() => {
@@ -545,7 +689,58 @@ function AsteroidBelt() {
     mesh.current.instanceMatrix.needsUpdate = true;
   });
 
-  return <instancedMesh ref={mesh} args={[geometry, material, count]} />;
+  if (!asset.geometry) return null;
+  return (
+    <>
+      <instancedMesh ref={mesh} args={[asset.geometry, asset.material, count]} />
+      <points>
+        <bufferGeometry>
+          <bufferAttribute attach="attributes-position" args={[dust, 3]} />
+        </bufferGeometry>
+        <pointsMaterial color="#8a7a64" size={0.28} transparent opacity={0.5} depthWrite={false} />
+      </points>
+    </>
+  );
+}
+
+function KuiperBelt() {
+  const positions = useMemo(() => {
+    let seed = 4211;
+    const random = () => {
+      seed = (seed * 1664525 + 1013904223) % 4294967296;
+      return seed / 4294967296;
+    };
+    const points = new Float32Array(1600 * 3);
+    for (let i = 0; i < 1600; i++) {
+      const angle = random() * Math.PI * 2;
+      const radius = (30 + random() * 20) * UNITS_PER_AU;
+      points[i * 3] = Math.cos(angle) * radius;
+      points[i * 3 + 1] = (random() - 0.5) * 260;
+      points[i * 3 + 2] = Math.sin(angle) * radius;
+    }
+    return points;
+  }, []);
+
+  return (
+    <points>
+      <bufferGeometry>
+        <bufferAttribute attach="attributes-position" args={[positions, 3]} />
+      </bufferGeometry>
+      <pointsMaterial color="#8098a4" size={0.42} transparent opacity={0.2} depthWrite={false} />
+    </points>
+  );
+}
+
+function Starfield() {
+  const ref = useRef();
+  useFrame(({ camera }) => {
+    if (ref.current) ref.current.position.copy(camera.position);
+  }, 2);
+  return (
+    <group ref={ref}>
+      <Stars radius={1300} depth={180} count={9000} factor={5} saturation={0} fade speed={0.25} />
+    </group>
+  );
 }
 
 export function SolarSystem() {
@@ -560,22 +755,26 @@ export function SolarSystem() {
   return (
     <>
       <color attach="background" args={['#01030a']} />
-      <ambientLight intensity={0.12} />
-      <Stars radius={1300} depth={180} count={9000} factor={5} saturation={0} fade speed={0.25} />
+      <ambientLight intensity={0.3} />
+      <Starfield />
       <Sun />
       {PLANETS.map((planet) => (
         <group key={planet.id}>
-          <Orbit body={planet} color={planet.color} />
+          {planet.type === 'planet' && <Orbit body={planet} color={planet.color} opacity={0.12} />}
           <Planet body={planet} />
         </group>
       ))}
       {COMETS.map((comet) => (
         <group key={comet.id}>
-          <Orbit body={comet} color={comet.tailColor} opacity={0.16} />
           <Comet comet={comet} />
         </group>
       ))}
       <AsteroidBelt />
+      <KuiperBelt />
     </>
   );
 }
+
+useGLTF.preload('/models/helion/asteroid_0.glb');
+useGLTF.preload('/models/comets/67p.glb');
+useGLTF.preload('/models/comets/tempel1.glb');

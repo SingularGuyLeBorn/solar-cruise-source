@@ -1,3 +1,5 @@
+import { BODY_RADIUS_SCALE, ORBIT_DISTANCE_SCALE, UNITS_PER_AU } from './scale';
+
 export const C_KMS = 299792.458;
 export const AU_KM = 149597870.7;
 
@@ -7,7 +9,6 @@ export const SUN = {
   name: '太阳',
   en: 'THE SUN',
   radiusKm: 696340,
-  visualRadius: 18,
   rotationHours: 609.12,
   axialTilt: 7.25,
   texture: 'planets/sun_photosphere-2k.jpg',
@@ -26,7 +27,6 @@ export const PLANETS = [
     name: '水星',
     en: 'MERCURY',
     radiusKm: 2439.7,
-    visualRadius: 1.4,
     orbitRadius: 55,
     semiMajorAu: 0.387098,
     eccentricity: 0.20563,
@@ -52,7 +52,6 @@ export const PLANETS = [
     name: '金星',
     en: 'VENUS',
     radiusKm: 6051.8,
-    visualRadius: 2.6,
     orbitRadius: 80,
     semiMajorAu: 0.723332,
     eccentricity: 0.006772,
@@ -78,7 +77,6 @@ export const PLANETS = [
     name: '地球',
     en: 'EARTH',
     radiusKm: 6371,
-    visualRadius: 2.8,
     orbitRadius: 110,
     semiMajorAu: 1,
     eccentricity: 0.0167086,
@@ -90,7 +88,7 @@ export const PLANETS = [
     rotationHours: 23.9345,
     axialTilt: 23.44,
     color: '#74b7c2',
-    texture: 'planets/earth_daymap-2k.jpg',
+    texture: 'planets/earth_daymap-4k.jpg',
     nightTexture: 'planets/earth_nightmap-2k.jpg',
     cloudTexture: 'planets/earth_clouds_nasa-2k.jpg',
     atmosphere: { color: '#8fd3ff', strength: 1.25 },
@@ -107,7 +105,6 @@ export const PLANETS = [
     name: '火星',
     en: 'MARS',
     radiusKm: 3389.5,
-    visualRadius: 1.8,
     orbitRadius: 150,
     semiMajorAu: 1.523679,
     eccentricity: 0.0934,
@@ -119,7 +116,9 @@ export const PLANETS = [
     rotationHours: 24.6229,
     axialTilt: 25.19,
     color: '#c16843',
-    texture: 'planets/mars-2k.jpg',
+    texture: 'planets/4k/4k_mars.jpg',
+    displacementTexture: 'planets/4k/2k_mars_mola.jpg',
+    displacementScale: 0.045,
     atmosphere: { color: '#ffb08a', strength: 0.45 },
     facts: [
       '拥有太阳系最高的火山奥林匹斯山，高约 21.9 km。',
@@ -133,7 +132,6 @@ export const PLANETS = [
     name: '谷神星',
     en: 'CERES',
     radiusKm: 473,
-    visualRadius: 0.55,
     orbitRadius: 190,
     semiMajorAu: 2.7675,
     eccentricity: 0.0758,
@@ -154,7 +152,6 @@ export const PLANETS = [
     name: '木星',
     en: 'JUPITER',
     radiusKm: 69911,
-    visualRadius: 8.5,
     orbitRadius: 270,
     semiMajorAu: 5.2044,
     eccentricity: 0.0489,
@@ -166,7 +163,7 @@ export const PLANETS = [
     rotationHours: 9.925,
     axialTilt: 3.13,
     color: '#d8b48a',
-    texture: 'planets/jupiter-2k.jpg',
+    texture: 'planets/4k/4k_jupiter.jpg',
     atmosphere: { color: '#f3d3a6', strength: 0.6 },
     facts: [
       '质量是其他七颗行星总和的 2.5 倍。',
@@ -180,7 +177,6 @@ export const PLANETS = [
     name: '土星',
     en: 'SATURN',
     radiusKm: 58232,
-    visualRadius: 7.2,
     orbitRadius: 360,
     semiMajorAu: 9.5826,
     eccentricity: 0.0565,
@@ -192,7 +188,7 @@ export const PLANETS = [
     rotationHours: 10.656,
     axialTilt: 26.73,
     color: '#e3c58f',
-    texture: 'planets/saturn-2k.jpg',
+    texture: 'planets/4k/4k_saturn.jpg',
     ringTexture: 'planets/saturn-ring-2k.png',
     atmosphere: { color: '#f4dfb0', strength: 0.5 },
     facts: [
@@ -207,7 +203,6 @@ export const PLANETS = [
     name: '天王星',
     en: 'URANUS',
     radiusKm: 25362,
-    visualRadius: 4.8,
     orbitRadius: 450,
     semiMajorAu: 19.2184,
     eccentricity: 0.0464,
@@ -221,6 +216,8 @@ export const PLANETS = [
     color: '#a9e3e8',
     texture: 'planets/uranus-2k.jpg',
     atmosphere: { color: '#a9f2ff', strength: 0.8 },
+    thinRings: [1.62, 1.78, 1.96, 2.06],
+    ringColor: '#bdd5d6',
     facts: ['自转轴几乎躺倒在轨道平面上。', '大气中的甲烷吸收红光，呈青蓝色。', '拥有 28 颗已知卫星和 13 道细环。'],
   },
   {
@@ -229,7 +226,6 @@ export const PLANETS = [
     name: '海王星',
     en: 'NEPTUNE',
     radiusKm: 24622,
-    visualRadius: 4.6,
     orbitRadius: 530,
     semiMajorAu: 30.11,
     eccentricity: 0.0087,
@@ -251,7 +247,6 @@ export const PLANETS = [
     name: '冥王星',
     en: 'PLUTO',
     radiusKm: 1188.3,
-    visualRadius: 0.9,
     orbitRadius: 620,
     semiMajorAu: 39.48,
     eccentricity: 0.2488,
@@ -272,7 +267,6 @@ export const PLANETS = [
     name: '妊神星',
     en: 'HAUMEA',
     radiusKm: 816,
-    visualRadius: 0.6,
     orbitRadius: 690,
     semiMajorAu: 43.13,
     eccentricity: 0.195,
@@ -293,7 +287,6 @@ export const PLANETS = [
     name: '鸟神星',
     en: 'MAKEMAKE',
     radiusKm: 715,
-    visualRadius: 0.6,
     orbitRadius: 740,
     semiMajorAu: 45.79,
     eccentricity: 0.159,
@@ -314,7 +307,6 @@ export const PLANETS = [
     name: '阋神星',
     en: 'ERIS',
     radiusKm: 1163,
-    visualRadius: 0.7,
     orbitRadius: 820,
     semiMajorAu: 67.864,
     eccentricity: 0.441,
@@ -395,6 +387,15 @@ export const COMETS = [
 ];
 
 export const ALL_BODIES = [SUN, ...PLANETS, ...COMETS];
+
+// 视觉半径严格按真实公里半径换算（地球 6371 km = 2.8 场景单位）；
+// 轨道距离单独放大，既不撞进太阳，也保留可巡航的尺度。
+for (const body of [SUN, ...PLANETS, ...COMETS]) {
+  if (body.radiusKm) body.visualRadius = body.radiusKm * BODY_RADIUS_SCALE;
+  if (body.semiMajorAu) body.orbitRadius = Number((body.semiMajorAu * UNITS_PER_AU).toFixed(2));
+  else if (body.orbitRadius) body.orbitRadius = Number((body.orbitRadius * ORBIT_DISTANCE_SCALE).toFixed(2));
+}
+
 export const PLANET_BY_ID = new Map(PLANETS.map((p) => [p.id, p]));
 export const BODY_BY_ID = new Map(ALL_BODIES.map((b) => [b.id, b]));
 

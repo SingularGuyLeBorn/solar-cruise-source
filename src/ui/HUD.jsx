@@ -1,5 +1,18 @@
 import { PLANETS, BODY_BY_ID, COMETS } from '../data/solarSystem';
+import { UNITS_PER_AU } from '../data/scale';
 import { MOONS, MOON_BY_ID } from '../data/moons';
+import { CockpitHUD } from './CockpitHUD';
+import { AutopilotPanel } from './AutopilotPanel';
+import { HoloPanel } from './HoloPanel';
+import { SolarMap } from './SolarMap';
+import { MaydayBanner } from './MaydayBanner';
+import { SolarStatus } from './SolarStatus';
+import { HoloSelectorPanel } from './HoloSelectorPanel';
+import { HoloAutoCycle } from './HoloAutoCycle';
+import { HoloFormCycle } from './HoloFormCycle';
+import { HoloFormGallery } from './HoloFormGallery';
+import { ImpactAudio } from './ImpactAudio';
+import { MobileControls } from './MobileControls';
 import { useFlightStore, SIM_SPEEDS } from '../state/useFlightStore';
 import { flightState } from '../state/flightState';
 import { getPosition, worldState } from '../state/worldState';
@@ -17,7 +30,7 @@ function distanceTo(id) {
 }
 
 function auLabel(units) {
-  return `${(units / 110).toFixed(2)} AU`;
+  return `${(units / UNITS_PER_AU).toFixed(2)} AU`;
 }
 
 function TargetCard({ state }) {
@@ -25,7 +38,7 @@ function TargetCard({ state }) {
   const distance = distanceTo(state.targetId);
   if (!target) return null;
   return (
-    <button className="hud-target" type="button" onClick={() => state.toggleJump()}>
+    <button className="hud-target" type="button" onClick={() => state.toggleSelector()}>
       <span className="eyebrow">TARGET / 目标</span>
       <strong>{target.en ?? target.name}</strong>
       <em>{target.name}</em>
@@ -43,20 +56,25 @@ export function HUD() {
 
   return (
     <div
-      className={`hud ${state.earthMode ? 'hud--earth' : ''} ${state.viewMode === 'cockpit' && !state.earthMode ? 'hud--cockpit' : ''}`}
+      className={`hud ${state.earthMode ? 'hud--earth' : ''} ${state.viewMode === 'cockpit' && !state.earthMode ? 'hud--cockpit' : ''} ${state.selector.open ? 'hud--selector' : ''}`}
     >
       <div
         className={`warp-vignette ${state.warp > 0 ? 'warp-vignette--active' : ''}`}
         style={{ opacity: Math.min(0.7, state.warp / 9) }}
       />
       {state.impactPulse > 0 && <div key={state.impactPulse} className="impact-flash" />}
+      <div
+        className="em-overlay"
+        aria-hidden="true"
+        style={{ opacity: Math.min(0.24, state.solar.interference * 0.45) }}
+      />
 
       <header className="hud-top">
         <div className="brand">
           <span className="brand-mark">SC</span>
           <div>
             <strong>SOLAR CRUISE</strong>
-            <small>太阳系漫游 · 曲率飞行</small>
+            <small>静默航行 · 太阳系巡游</small>
           </div>
         </div>
         <TargetCard state={state} />
@@ -81,6 +99,16 @@ export function HUD() {
           <button className={state.engineOn ? 'active' : ''} type="button" onClick={state.toggleEngine}>
             引擎 {state.engineOn ? 'ON' : 'OFF'}
           </button>
+          <button className={state.holo.open ? 'active' : ''} type="button" onClick={state.toggleHolo}>
+            投影
+          </button>
+          <button
+            className={`hud-actions__desktop ${state.selector.open ? 'active' : ''}`}
+            type="button"
+            onClick={state.toggleSelector}
+          >
+            星图
+          </button>
           <button type="button" onClick={() => state.toggleHelp()}>
             操作
           </button>
@@ -94,6 +122,19 @@ export function HUD() {
         </nav>
       </header>
 
+      <CockpitHUD />
+      <SolarMap />
+      <HoloSelectorPanel />
+      <SolarStatus />
+      <MaydayBanner />
+      <HoloPanel />
+      <MobileControls />
+      <MobileScanCard state={state} />
+      <HoloAutoCycle />
+      <HoloFormCycle />
+      <HoloFormGallery />
+      <ImpactAudio />
+
       {!state.earthMode && (
         <aside className="hud-left">
           <div className="panel">
@@ -104,18 +145,22 @@ export function HUD() {
               <b>{summary.gamma.toFixed(4)}</b>
             </div>
             <div className="readout-row">
-              <span>THROTTLE</span>
-              <b>{Math.round(state.throttle * 100)}%</b>
+              <span>{state.throttle < 0 ? 'REVERSE' : 'THROTTLE'}</span>
+              <b>{Math.round(Math.abs(state.throttle) * 100)}%</b>
             </div>
             <input
               className="range"
               type="range"
-              min="0"
+              min="-1"
               max="1"
               step="0.01"
               value={state.throttle}
               onChange={(event) => state.setThrottle(Number(event.target.value))}
             />
+            <div className="throttle-ends">
+              <span>REV</span>
+              <span>FWD</span>
+            </div>
             <div className="readout-row">
               <span>WARP</span>
               <b>{state.warp.toFixed(1)} / 9</b>
@@ -157,7 +202,7 @@ export function HUD() {
                 扫描 R
               </button>
               <button type="button" onClick={() => state.triggerImpactTest()}>
-                冲击测试 K
+                小行星撞击 K
               </button>
             </div>
           </div>
@@ -190,16 +235,19 @@ export function HUD() {
         <div className="bottom-hint">
           <span>{summary.note}</span>
           <span>
-            {state.earthMode ? 'Cesium 地球 · 鼠标拖拽旋转 / 滚轮缩放' : 'W/S 调速 · 方向键转向 · V 视角 · Space 跳跃'}
+            {state.earthMode
+              ? 'Cesium 地球 · 鼠标拖拽旋转 / 滚轮缩放'
+              : '鼠标 360° 环视 · W/S 前进/反推 · 滚轮切投影 · J 全息星图 · V 视角'}
           </span>
         </div>
       </div>
 
       <aside className="hud-right">
+        <AutopilotPanel />
         <div className="panel">
           <span className="eyebrow">MISSION LOG / 航行日志</span>
           <ul className="log-list">
-            {state.log.map((entry, index) => (
+            {state.log.slice(0, 3).map((entry, index) => (
               <li key={`${entry}-${index}`}>{entry}</li>
             ))}
           </ul>
@@ -239,6 +287,25 @@ export function HUD() {
           <small>影像 © Esri / Maxar / Earthstar Geographics · 服务条款适用</small>
         </div>
       )}
+    </div>
+  );
+}
+
+function MobileScanCard({ state }) {
+  const body = state.scanResult;
+  if (!body) return null;
+  const fact = (body.facts ?? [body.fact]).filter(Boolean)[0];
+  return (
+    <div className="panel mobile-scan-card">
+      <div className="mobile-scan-head">
+        <span className="eyebrow">SCAN / 扫描结果</span>
+        <button type="button" onClick={state.clearScan} aria-label="关闭扫描结果">
+          ×
+        </button>
+      </div>
+      <strong>{body.en ?? body.name}</strong>
+      <em>{body.name}</em>
+      {fact ? <p>{fact}</p> : null}
     </div>
   );
 }
@@ -290,21 +357,29 @@ function JumpMenu({ state }) {
 
 function HelpPanel({ state }) {
   const rows = [
-    ['鼠标拖拽 / 点击画面', '锁定鼠标后转向'],
-    ['W / S', '油门加 / 减'],
+    ['鼠标', '驾驶舱 360° 自由环视 / 追尾视角转向'],
+    ['W / S', '前进推力 / 反推刹车（S 可进入倒退）'],
     ['Shift', '加力'],
     ['方向键', '俯仰 / 偏航'],
     ['A / D', '滚转'],
     ['数字 0–9', '直接设定曲率档位'],
     ['Space', '跳跃到当前目标'],
-    ['J', '打开跳跃菜单'],
+    ['滚轮', '切换当前投影：馆藏下一件 / 太阳系下一个天体'],
+    ['J', '打开 / 关闭全屏全息星图'],
     ['V', '驾驶舱 / 第三人称'],
     ['H', '离子护盾'],
     ['E', '引擎点火 / 关闭'],
     ['T', '时间倍率'],
     ['R', '扫描邻近天体'],
     ['C', 'Cesium 地球视图'],
-    ['K', '模拟冲击波'],
+    ['K', '小行星撞击测试'],
+    ['G', '自动驾驶：位置保持 / 解除'],
+    ['F', '自动驾驶：飞向当前目标'],
+    ['O', '太阳系导航全息 开 / 收起'],
+    ['投影卡 · 馆藏', '打开 20 件真实扫描馆藏投影库'],
+    ['投影区', '馆藏 / 太阳系切换（移动端投影卡 tab）'],
+    ['移动端', '左下摇杆与底部油门常驻；右下“操作”卷轴展开触控指令'],
+    ['M', '座舱撞击音效 开 / 关'],
     ['P', '显示 / 隐藏本帮助'],
   ];
   return (

@@ -1,6 +1,7 @@
 node_modules/
 dist/
 public/cesium/
+public/planets/8k/
 .recovery/
 .DS_Store
 *.local

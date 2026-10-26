@@ -35,7 +35,8 @@ export function formatTimeFromDays(days) {
 
 export function formatSpeed(speedC, warp) {
   if (warp > 0) return `WARP ${warp.toFixed(1)}`;
-  if (speedC < 0.001) return `${(speedC * 100).toFixed(2)} % c`;
+  if (Math.abs(speedC) < 0.001) return '0.00 % c';
+  if (speedC < 0) return `REV ${(Math.abs(speedC) * 100).toFixed(2)} % c`;
   return `${speedC.toFixed(4)} c`;
 }
 

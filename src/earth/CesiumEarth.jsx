@@ -15,7 +15,7 @@ export function CesiumEarth() {
 
     (async () => {
       const Cesium = await import('cesium');
-      if (cancelled) return;
+      if (cancelled || !container.current) return;
 
       viewer = new Cesium.Viewer(container.current, {
         baseLayer: false,
@@ -64,11 +64,13 @@ export function CesiumEarth() {
 
       try {
         const terrain = await Cesium.ArcGISTiledElevationTerrainProvider.fromUrl(ARCGIS_TERRAIN);
-        if (!cancelled) viewer.terrainProvider = terrain;
+        if (cancelled || !viewer || viewer.isDestroyed()) return;
+        viewer.terrainProvider = terrain;
       } catch (error) {
         console.warn('Cesium terrain unavailable, using ellipsoid', error);
       }
 
+      if (cancelled || !viewer || viewer.isDestroyed()) return;
       viewer.scene.globe.enableLighting = true;
       viewer.scene.globe.showGroundAtmosphere = true;
       viewer.scene.globe.depthTestAgainstTerrain = false;
@@ -78,8 +80,8 @@ export function CesiumEarth() {
       viewer.clock.currentTime = Cesium.JulianDate.fromDate(localNoon);
       viewer.clock.multiplier = 1;
       viewer.camera.setView({
-        destination: Cesium.Cartesian3.fromDegrees(139.7, 35.7, 1_600_000),
-        orientation: { heading: 0, pitch: -1.0, roll: 0 },
+        destination: Cesium.Cartesian3.fromDegrees(139.7, 35.7, 1_400_000),
+        orientation: { heading: 0, pitch: -1.45, roll: 0 },
       });
 
       const cities = [
@@ -107,10 +109,12 @@ export function CesiumEarth() {
         });
       }
 
-      setStatus('ready');
+      if (!cancelled) setStatus('ready');
     })().catch((error) => {
-      console.error(error);
-      setStatus('error');
+      if (!cancelled) {
+        console.error(error);
+        setStatus('error');
+      }
     });
 
     return () => {

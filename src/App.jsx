@@ -4,15 +4,21 @@ import { CesiumEarth } from './earth/CesiumEarth';
 import { HUD } from './ui/HUD';
 import { useFlightStore } from './state/useFlightStore';
 import { flightState } from './state/flightState';
-import { Matrix4, Vector3 } from 'three';
+import { Matrix4, Quaternion, Vector3 } from 'three';
 import { getPosition, worldState } from './state/worldState';
+import { SHIP_VARIANT } from './state/shipVariant';
+import { BODY_BY_ID } from './data/solarSystem';
+import { MOON_BY_ID } from './data/moons';
+import { LANDMARKS_BY_BODY } from './data/landmarks';
+import { latLonToVector3 } from './lib/orbits';
+import { ensureImpactAudio } from './lib/impactAudio';
 
 function BootOverlay({ onStart }) {
   return (
     <div className="boot-overlay">
       <div className="boot-grid" />
       <div className="boot-content">
-        <span className="eyebrow">HUMAN FLIGHT SYSTEMS · 航行终端</span>
+        <span className="eyebrow">A QUIET PASSAGE · 航行终端</span>
         <h1>SOLAR CRUISE</h1>
         <h2>太阳系漫游</h2>
         <p>
@@ -33,8 +39,8 @@ function BootOverlay({ onStart }) {
             <span>卫星</span>
           </div>
           <div>
-            <strong>∞</strong>
-            <span>曲率档位</span>
+            <strong>9</strong>
+            <span>曲率上限</span>
           </div>
         </div>
         <div className="boot-controls">
@@ -53,7 +59,7 @@ function BootOverlay({ onStart }) {
           进入驾驶舱
           <small>ENTER COCKPIT</small>
         </button>
-        <p className="boot-note">点击画面可锁定鼠标；Esc 释放。首次载入贴图需要几秒。</p>
+        <p className="boot-note">点击画面锁定鼠标环视，方向键控制飞船；Esc 释放。首次载入贴图需要几秒。</p>
       </div>
     </div>
   );
@@ -67,6 +73,7 @@ export default function App() {
   useEffect(() => {
     if (new URLSearchParams(location.search).get('debug') === '1') {
       window.__cruise = {
+        ship: SHIP_VARIANT,
         store: useFlightStore,
         flightState,
         worldState,
@@ -74,29 +81,86 @@ export default function App() {
         teleport(id, distance = 4, view = 'cockpit') {
           const targetPosition = getPosition(id);
           if (!targetPosition) return;
-          const offset = new Vector3(0.25, 0.18, 1).normalize().multiplyScalar(distance);
-          const position = targetPosition.clone().add(offset);
-          const matrix = new Matrix4().lookAt(position, targetPosition, new Vector3(0, 1, 0));
-          flightState.position.copy(position);
-          flightState.quaternion.setFromRotationMatrix(matrix);
+          const target = BODY_BY_ID.get(id) ?? MOON_BY_ID.get(id);
+          const safeDistance = target?.visualRadius ? target.visualRadius * 1.35 + 0.8 : 2.4;
+          const cameraDistance = Math.max(distance, safeDistance);
+          const offset = new Vector3(0.25, 0.18, 1).normalize().multiplyScalar(cameraDistance);
+          const cameraPoint = targetPosition.clone().add(offset);
+          const matrix = new Matrix4().lookAt(cameraPoint, targetPosition, new Vector3(0, 1, 0));
+          const quaternion = new Quaternion().setFromRotationMatrix(matrix);
+          const eye = new Vector3(0, 0.38, 0.55).applyQuaternion(quaternion);
+          flightState.position.copy(cameraPoint).sub(eye);
+          flightState.quaternion.copy(quaternion);
           flightState.speedC = 0;
           flightState.throttle = 0;
           flightState.warp = 0;
+          flightState.lookYaw = 0;
+          flightState.lookPitch = 0;
           useFlightStore.getState().setTarget(id);
           useFlightStore.getState().setView(view);
           useFlightStore.getState().setEarthMode(false);
+          useFlightStore.getState().setSimSpeedIndex(1);
+        },
+        focusLandmark(bodyId, landmarkId, distance = 0.38) {
+          const body = BODY_BY_ID.get(bodyId) ?? MOON_BY_ID.get(bodyId);
+          const landmark = LANDMARKS_BY_BODY.get(bodyId)?.find((item) => item.id === landmarkId);
+          const center = getPosition(bodyId);
+          if (!body || !landmark || !center) return;
+          const local = latLonToVector3(landmark.lat, landmark.lon, body.visualRadius * 1.01);
+          let spin;
+          if (MOON_BY_ID.has(bodyId)) {
+            const localPos = worldState.localPositions.get(bodyId) ?? new Vector3();
+            spin =
+              bodyId === 'moon'
+                ? Math.atan2(localPos.z, -localPos.x)
+                : (worldState.days / Math.abs(body.periodDays)) * Math.PI * 2 * (body.retrograde ? -1 : 1);
+          } else {
+            const rotationHours = body.rotationHours || 24;
+            spin = (worldState.days / (Math.abs(rotationHours) / 24)) * Math.PI * 2 * (rotationHours < 0 ? -1 : 1);
+          }
+          local.applyAxisAngle(new Vector3(0, 1, 0), spin);
+          if (MOON_BY_ID.has(bodyId) === false && body.axialTilt) {
+            local.applyAxisAngle(new Vector3(0, 0, 1), body.axialTilt * (Math.PI / 180));
+          }
+          const point = center.clone().add(local);
+          const normal = local.clone().normalize();
+          const tangent = new Vector3().crossVectors(normal, new Vector3(0, 1, 0));
+          if (tangent.lengthSq() < 0.01) tangent.set(1, 0, 0);
+          tangent.normalize();
+          const cameraDistance = distance + 0.9;
+          const cameraPoint = point
+            .clone()
+            .addScaledVector(normal, cameraDistance)
+            .addScaledVector(tangent, cameraDistance * 0.18);
+          const matrix = new Matrix4().lookAt(cameraPoint, point, normal);
+          const quaternion = new Quaternion().setFromRotationMatrix(matrix);
+          const eye = new Vector3(0, 0.38, 0.55).applyQuaternion(quaternion);
+          flightState.position.copy(cameraPoint).sub(eye);
+          flightState.quaternion.copy(quaternion);
+          flightState.speedC = 0;
+          flightState.throttle = 0;
+          flightState.warp = 0;
+          flightState.lookYaw = 0;
+          flightState.lookPitch = 0;
+          useFlightStore.getState().setTarget(bodyId);
+          useFlightStore.getState().setView('cockpit');
+          useFlightStore.getState().setEarthMode(false);
+          useFlightStore.getState().setSimSpeedIndex(1);
         },
       };
     }
   }, []);
 
   const start = () => {
+    ensureImpactAudio();
     setBooted(true);
     addLog('先驱者号已进入自由飞行。曲率引擎待命。');
   };
 
   const lockPointer = (event) => {
-    if (event.target.tagName === 'CANVAS') event.target.requestPointerLock?.();
+    if (event.pointerType === 'mouse' && event.target.tagName === 'CANVAS') {
+      event.target.requestPointerLock?.();
+    }
   };
 
   return (
@@ -116,7 +180,7 @@ export default function App() {
       )}
       <HUD />
       {!booted && <BootOverlay onStart={start} />}
-      <div className="pointer-hint">点击画面锁定鼠标 · Esc 释放</div>
+      <div className="pointer-hint">点击画面锁定鼠标环视 · 方向键控船 · Esc 释放</div>
     </div>
   );
 }
