@@ -20,7 +20,7 @@ export const flightState = {
   warp: 0,
   speedC: 0,
   engineOn: true,
-  shield: true,
+  shield: false,
   shieldEnergy: 1,
   shieldFlashUntil: 0,
   externalSeconds: 0,

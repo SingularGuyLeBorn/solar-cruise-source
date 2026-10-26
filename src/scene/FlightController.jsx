@@ -30,6 +30,12 @@ export function FlightController() {
   const lastPosition = useRef(flightState.position.clone());
   const tempQuat = useMemo(() => new Quaternion(), []);
   const tempVec = useMemo(() => new Vector3(), []);
+  const alignYaw = useMemo(() => new Quaternion(), []);
+  const alignPitch = useMemo(() => new Quaternion(), []);
+  const viewTarget = useMemo(() => new Quaternion(), []);
+  const viewInverse = useMemo(() => new Quaternion(), []);
+  const alignEuler = useMemo(() => new Euler(0, 0, 0, 'YXZ'), []);
+  const viewAssist = useRef(false);
 
   useEffect(() => {
     const down = (event) => {
@@ -211,7 +217,7 @@ export function FlightController() {
         (keys.current.ArrowRight ? 1 : 0) +
         touchYaw +
         (looking ? 0 : -mouse.current.dx * 0.0022);
-    const rollInput = autopilotActive ? 0 : (keys.current.KeyA ? 1 : 0) - (keys.current.KeyD ? 1 : 0) + touchRoll;
+    const rollInput = autopilotActive ? 0 : (keys.current.KeyD ? 1 : 0) - (keys.current.KeyA ? 1 : 0) + touchRoll;
     if (!autopilotActive) {
       flightState.steerX = yawInput;
       flightState.steerY = pitchInput;
@@ -226,6 +232,32 @@ export function FlightController() {
       q.multiply(tempQuat.setFromAxisAngle(UP, yawInput * 0.75 * turnScale * dt));
       q.multiply(tempQuat.setFromAxisAngle(FORWARD, rollInput * 1.2 * turnScale * dt));
       q.normalize();
+
+      // W is view-relative: latch the current free-look direction as a world-space
+      // target, turn the hull to it while the camera stays locked on that direction.
+      const alignThrust = looking && keys.current.KeyW;
+      const lookStrength = Math.abs(flightState.lookYaw) + Math.abs(flightState.lookPitch);
+      if (!alignThrust) {
+        viewAssist.current = false;
+      } else if (!viewAssist.current && lookStrength > 0.03) {
+        alignYaw.setFromAxisAngle(UP, -flightState.lookYaw);
+        alignPitch.setFromAxisAngle(RIGHT, flightState.lookPitch);
+        viewTarget.copy(q).multiply(alignYaw).multiply(alignPitch);
+        viewAssist.current = true;
+      }
+      if (alignThrust && viewAssist.current) {
+        q.slerp(viewTarget, 1 - Math.exp(-dt * 4.2 * turnScale));
+        q.normalize();
+        viewInverse.copy(q).invert().multiply(viewTarget);
+        alignEuler.setFromQuaternion(viewInverse, 'YXZ');
+        flightState.lookYaw = -alignEuler.y;
+        flightState.lookPitch = Math.max(-1.54, Math.min(1.54, alignEuler.x));
+        if (Math.abs(alignEuler.x) + Math.abs(alignEuler.y) < 0.004) {
+          flightState.lookYaw = 0;
+          flightState.lookPitch = 0;
+          viewAssist.current = false;
+        }
+      }
 
       const throttleUp = keys.current.KeyW || keys.current.ShiftLeft || keys.current.ShiftRight;
       const throttleDown = keys.current.KeyS || keys.current.ControlLeft || keys.current.ControlRight;
@@ -347,7 +379,11 @@ export function FlightController() {
               angleFactor,
               mass: 1,
             });
-            store.addLog(`警告：${body.name} 引力边界，护盾吸收冲击。`);
+            store.addLog(
+              `警告：${body.name} 引力边界，${
+                flightState.shield ? '护盾吸收冲击。' : '护盾未展开，船体受到直接冲击。'
+              }`,
+            );
             lastCollision.current = { id: body.id, at: now };
           }
         }

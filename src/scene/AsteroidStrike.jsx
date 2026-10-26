@@ -179,7 +179,9 @@ export function AsteroidStrike() {
         state.current.flashAt = performance.now() / 1000;
         store.registerShieldImpact();
         store.addLog(
-          `护盾吸收小行星动能：相对速度 ${relativeSpeed.toFixed(1)} u/s · 法向撞击 ${Math.round(angleFactor * 100)}%。`,
+          flightState.shield
+            ? `护盾吸收小行星动能：相对速度 ${relativeSpeed.toFixed(1)} u/s · 法向撞击 ${Math.round(angleFactor * 100)}%。`
+            : `护盾未展开，船体受到小行星直接冲击：相对速度 ${relativeSpeed.toFixed(1)} u/s。`,
         );
       } else {
         const speed = state.current.velocity.length();

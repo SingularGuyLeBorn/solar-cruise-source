@@ -170,7 +170,7 @@ export function MobileControls() {
             </button>
             <button
               type="button"
-              onPointerDown={roll(1)}
+              onPointerDown={roll(-1)}
               onPointerUp={stopRoll}
               onPointerLeave={stopRoll}
               onPointerCancel={stopRoll}
@@ -179,7 +179,7 @@ export function MobileControls() {
             </button>
             <button
               type="button"
-              onPointerDown={roll(-1)}
+              onPointerDown={roll(1)}
               onPointerUp={stopRoll}
               onPointerLeave={stopRoll}
               onPointerCancel={stopRoll}
