@@ -249,6 +249,9 @@ export function MobileControls() {
             <button type="button" onClick={() => runAndClose(() => useFlightStore.getState().toggleHolo())}>
               投影
             </button>
+            <button type="button" onClick={() => runAndClose(() => useFlightStore.getState().openFormGallery())}>
+              馆藏
+            </button>
             <button
               type="button"
               onClick={() => {

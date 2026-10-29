@@ -14,6 +14,7 @@ import {
 import { HOLO_ARTIFACTS, HOLO_ARTIFACT_BY_ID } from '../data/holoArtifacts';
 import { SUN, PLANETS } from '../data/solarSystem';
 import { loadArtifactPositions } from '../lib/holoArtifacts';
+import { FeedbackEcho, HoloSignalField, SignalTicks } from './HoloSignal';
 import { useFlightStore } from '../state/useFlightStore';
 
 const vertexShader = /* glsl */ `
@@ -71,9 +72,10 @@ function hashString(value) {
   return hash >>> 0;
 }
 
-function buildColors(artifact, count) {
+function buildColors(artifact, count, includeHighlight = true) {
   const colors = new Float32Array(count * 3);
-  const palette = (artifact.colors ?? ['#1b6b76', '#5fd4e2', '#e0aa48', '#efffff']).map((value) => new Color(value));
+  const source = artifact.colors ?? ['#1b6b76', '#5fd4e2', '#e0aa48', '#efffff'];
+  const palette = (includeHighlight ? source : source.slice(0, 3)).map((value) => new Color(value));
   const white = new Color('#ffffff');
   const random = mulberry32(hashString(`${artifact.id}:cloud`));
   for (let index = 0; index < count; index += 1) {
@@ -149,6 +151,11 @@ function drawGlassFrame(canvas, artifact, index, total, active) {
   ctx.fillStyle = `${main}cc`;
   ctx.font = `500 ${Math.round(width * 0.026)}px "Consolas", monospace`;
   ctx.fillText('REAL SCAN / SANXINGDUI ARCHIVE', pad * 1.6, pad * 2.4);
+  ctx.textAlign = 'right';
+  ctx.fillStyle = `${main}bb`;
+  ctx.font = `500 ${Math.round(width * 0.024)}px "Consolas", monospace`;
+  ctx.fillText('GENERATIVE FIELD / GEN-04', width - pad * 1.6, pad * 2.4);
+  ctx.textAlign = 'left';
 
   ctx.fillStyle = pale;
   const nameSize = artifact.name.length > 7 ? width * 0.07 : width * 0.088;
@@ -172,7 +179,14 @@ function drawGlassFrame(canvas, artifact, index, total, active) {
   ctx.textAlign = 'left';
 }
 
-export function CollectionHoloCloud({ count = 3200, scale = 0.3, showFrame = false, active = false, pointSize = 2.3 }) {
+export function CollectionHoloCloud({
+  count = 3200,
+  scale = 0.3,
+  showFrame = false,
+  active = false,
+  pointSize = 2.3,
+  signal = false,
+}) {
   const formId = useFlightStore((state) => state.holo.formId);
   const artifact = HOLO_ARTIFACT_BY_ID.get(formId) ?? HOLO_ARTIFACTS[0];
   const artifactIndex = Math.max(
@@ -196,7 +210,7 @@ export function CollectionHoloCloud({ count = 3200, scale = 0.3, showFrame = fal
       sizes[index] = 0.65 + random() * 0.8;
     }
     geo.setAttribute('position', new BufferAttribute(positions, 3));
-    geo.setAttribute('aColor', new BufferAttribute(buildColors(artifact, count), 3));
+    geo.setAttribute('aColor', new BufferAttribute(buildColors(artifact, count, !signal), 3));
     geo.setAttribute('aSeed', new BufferAttribute(seeds, 1));
     geo.setAttribute('aSize', new BufferAttribute(sizes, 1));
     return geo;
@@ -212,8 +226,8 @@ export function CollectionHoloCloud({ count = 3200, scale = 0.3, showFrame = fal
         uniforms: {
           uTime: { value: 0 },
           uPixelRatio: { value: 1 },
-          uSize: { value: pointSize },
-          uOpacity: { value: 0.96 },
+          uSize: { value: signal ? Math.min(pointSize, 1.35) : pointSize },
+          uOpacity: { value: signal ? 0.42 : 0.96 },
           uReveal: { value: 0 },
         },
         vertexShader,
@@ -244,7 +258,7 @@ export function CollectionHoloCloud({ count = 3200, scale = 0.3, showFrame = fal
   useEffect(() => {
     let cancelled = false;
     reveal.current = 0;
-    const colors = buildColors(artifact, count);
+    const colors = buildColors(artifact, count, !signal);
     geometry.attributes.aColor.array.set(colors);
     geometry.attributes.aColor.needsUpdate = true;
     drawGlassFrame(frame.canvas, artifact, artifactIndex, HOLO_ARTIFACTS.length, active);
@@ -263,7 +277,7 @@ export function CollectionHoloCloud({ count = 3200, scale = 0.3, showFrame = fal
     return () => {
       cancelled = true;
     };
-  }, [artifact, artifactIndex, active, count, geometry, frame, scale]);
+  }, [artifact, artifactIndex, active, count, geometry, frame, scale, signal]);
 
   useFrame(({ clock, gl }, delta) => {
     const time = clock.elapsedTime;
@@ -288,9 +302,25 @@ export function CollectionHoloCloud({ count = 3200, scale = 0.3, showFrame = fal
   });
 
   const accent = active ? '#efc78f' : '#9fe6ff';
+  const signalPalette = [
+    artifact.colors?.[0] ?? '#0b6f86',
+    artifact.colors?.[2] ?? '#e0a253',
+    artifact.colors?.[1] ?? '#5fd4e2',
+  ];
 
   return (
     <group>
+      {signal ? (
+        <HoloSignalField
+          width={scale * 1.9}
+          height={scale * 2.3}
+          position={[0, 0, -scale * 0.67]}
+          mode="collection"
+          palette={signalPalette}
+          opacity={0.21}
+          seed={(artifactIndex % 7) * 0.7 + 0.4}
+        />
+      ) : null}
       {showFrame ? (
         <mesh position={[0, 0, -scale * 0.62]}>
           <planeGeometry args={[scale * 1.42, scale * 1.78]} />
@@ -333,6 +363,37 @@ export function CollectionHoloCloud({ count = 3200, scale = 0.3, showFrame = fal
           />
         </mesh>
       </group>
+      {signal ? (
+        <>
+          <FeedbackEcho
+            geometry={geometry}
+            color={accent}
+            size={0.0032}
+            opacity={0.03}
+            scale={1.045}
+            speed={0.09}
+            offset={[scale * 0.014, 0, 0]}
+          />
+          <FeedbackEcho
+            geometry={geometry}
+            color="#ff5fd2"
+            size={0.0025}
+            opacity={0.016}
+            scale={0.97}
+            speed={-0.062}
+            offset={[-scale * 0.012, 0, scale * 0.01]}
+          />
+          <SignalTicks
+            radius={extent * 1.62}
+            count={48}
+            color={accent}
+            opacity={0.09}
+            length={scale * 0.06}
+            position={[0, -extent - scale * 0.02, 0]}
+            rotation={[-Math.PI / 2, 0, 0]}
+          />
+        </>
+      ) : null}
     </group>
   );
 }

@@ -1,6 +1,7 @@
 import { Suspense } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { Bloom, EffectComposer, Vignette } from '@react-three/postprocessing';
+import { Bloom, EffectComposer, ToneMapping, Vignette } from '@react-three/postprocessing';
+import { ToneMappingMode } from 'postprocessing';
 import { SolarSystem } from './SolarSystem';
 import { Ship } from './Ship';
 import { FlightCamera, FlightController } from './FlightController';
@@ -21,7 +22,7 @@ export function SpaceScene() {
       camera={{ position: [0, 400, 1600], fov: 60, near: 0.05, far: 20000 }}
       gl={{ antialias: true, powerPreference: 'high-performance' }}
       onCreated={({ gl }) => {
-        gl.toneMappingExposure = 1.05;
+        gl.toneMappingExposure = 1.12;
       }}
     >
       <FlightController />
@@ -39,8 +40,9 @@ export function SpaceScene() {
       <HoloSelector3D />
       <WarpTunnel />
       <EffectComposer multisampling={0}>
-        <Bloom intensity={0.62} luminanceThreshold={0.74} luminanceSmoothing={0.18} mipmapBlur />
+        <Bloom intensity={0.15} luminanceThreshold={0.9} luminanceSmoothing={0.25} mipmapBlur />
         <WarpPostEffects />
+        <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
         <Vignette offset={0.18} darkness={0.55} />
       </EffectComposer>
     </Canvas>

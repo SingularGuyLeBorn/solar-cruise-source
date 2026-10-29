@@ -188,6 +188,7 @@ export const PLANETS = [
     rotationHours: 10.656,
     axialTilt: 26.73,
     color: '#e3c58f',
+    tint: '#d9ccb4',
     texture: 'planets/4k/4k_saturn.jpg',
     ringTexture: 'planets/saturn-ring-2k.png',
     atmosphere: { color: '#f4dfb0', strength: 0.5 },
@@ -341,6 +342,7 @@ export const COMETS = [
     phase: 1.2,
     color: '#bfe6ff',
     tailColor: '#9fd8ff',
+    visualRadius: 0.9,
   },
   {
     id: 'encke',
@@ -355,6 +357,7 @@ export const COMETS = [
     phase: 3.4,
     color: '#d8f0ff',
     tailColor: '#b5e6ff',
+    visualRadius: 0.9,
   },
   {
     id: 'churyumov',
@@ -369,6 +372,7 @@ export const COMETS = [
     phase: 5.1,
     color: '#cfe9ff',
     tailColor: '#a8dcff',
+    visualRadius: 0.9,
   },
   {
     id: 'wild2',
@@ -383,6 +387,7 @@ export const COMETS = [
     phase: 0.4,
     color: '#dff3ff',
     tailColor: '#bce8ff',
+    visualRadius: 0.9,
   },
 ];
 

@@ -2,9 +2,10 @@ import { useMemo } from 'react';
 import { useGLTF } from '@react-three/drei';
 import { Box3, Vector3 } from 'three';
 import { clone as cloneSkeleton } from 'three/examples/jsm/utils/SkeletonUtils.js';
+import { assetPath } from '../lib/assetPath';
 
 export function SurveyRover({ size = 0.16, rotation = 0 }) {
-  const { scene } = useGLTF('/models/lunar/survey-rover.glb');
+  const { scene } = useGLTF(assetPath('/models/lunar/survey-rover.glb'));
   const model = useMemo(() => {
     const clone = cloneSkeleton(scene);
     clone.updateMatrixWorld(true);

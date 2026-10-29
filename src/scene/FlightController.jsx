@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { Euler, Matrix4, Quaternion, Vector3 } from 'three';
-import { BODY_BY_ID, PLANETS, SUN } from '../data/solarSystem';
+import { BODY_BY_ID, COMETS, PLANETS, SUN } from '../data/solarSystem';
 import { MOONS } from '../data/moons';
 import { MOON_BY_ID } from '../data/moons';
 import { COCKPIT_EYE_OFFSET, flightState, beginJump, triggerShieldImpact } from '../state/flightState';
@@ -39,10 +39,22 @@ export function FlightController() {
 
   useEffect(() => {
     const down = (event) => {
+      const editing =
+        event.target instanceof Element && event.target.closest('input, textarea, select, [contenteditable="true"]');
+      if (editing && event.code !== 'Escape') return;
       const modalState = useFlightStore.getState();
       if (modalState.holo.formGalleryOpen) {
         if (event.code === 'Escape' || event.code === 'KeyB') {
           if (!event.repeat) modalState.closeFormGallery();
+          event.preventDefault();
+        } else if (event.code === 'KeyP') {
+          if (!event.repeat) modalState.toggleHelp();
+          event.preventDefault();
+        } else if (event.code === 'KeyJ') {
+          if (!event.repeat) modalState.toggleSelector();
+          event.preventDefault();
+        } else if (event.code === 'KeyY') {
+          if (!event.repeat) modalState.toggleJump();
           event.preventDefault();
         }
         return;
@@ -51,6 +63,15 @@ export function FlightController() {
         if (event.code === 'Escape' || event.code === 'KeyP') {
           if (!event.repeat) modalState.toggleHelp();
           event.preventDefault();
+        } else if (event.code === 'KeyJ') {
+          if (!event.repeat) modalState.toggleSelector();
+          event.preventDefault();
+        } else if (event.code === 'KeyY') {
+          if (!event.repeat) modalState.toggleJump();
+          event.preventDefault();
+        } else if (event.code === 'KeyB') {
+          if (!event.repeat) modalState.openFormGallery();
+          event.preventDefault();
         }
         return;
       }
@@ -58,15 +79,30 @@ export function FlightController() {
         if (event.code === 'Escape' || event.code === 'KeyY') {
           if (!event.repeat) modalState.toggleJump();
           event.preventDefault();
+        } else if (event.code === 'KeyP') {
+          if (!event.repeat) modalState.toggleHelp();
+          event.preventDefault();
+        } else if (event.code === 'KeyJ') {
+          if (!event.repeat) modalState.toggleSelector();
+          event.preventDefault();
+        } else if (event.code === 'KeyB') {
+          if (!event.repeat) modalState.openFormGallery();
+          event.preventDefault();
         }
         return;
       }
       if (modalState.selector.open) {
         if (event.code === 'Escape' || event.code === 'KeyJ') {
-          modalState.toggleSelector();
+          if (!event.repeat) modalState.toggleSelector();
           event.preventDefault();
         } else if (event.code === 'KeyY') {
-          modalState.toggleJump();
+          if (!event.repeat) modalState.toggleJump();
+          event.preventDefault();
+        } else if (event.code === 'KeyP') {
+          if (!event.repeat) modalState.toggleHelp();
+          event.preventDefault();
+        } else if (event.code === 'KeyB') {
+          if (!event.repeat) modalState.openFormGallery();
           event.preventDefault();
         } else if (event.code === 'Space') {
           if (!event.repeat) {
@@ -111,6 +147,13 @@ export function FlightController() {
       ) {
         return;
       }
+      if (
+        event.code === 'Space' &&
+        event.target instanceof Element &&
+        event.target.closest('input, textarea, select, [contenteditable="true"]')
+      ) {
+        return;
+      }
       keys.current[event.code] = true;
       if (
         ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'KeyW', 'KeyS', 'KeyA', 'KeyD'].includes(
@@ -127,7 +170,15 @@ export function FlightController() {
       if (event.code === 'KeyE') useFlightStore.getState().toggleEngine();
       if (event.code === 'KeyJ') useFlightStore.getState().toggleSelector();
       if (event.code === 'KeyY') useFlightStore.getState().toggleJump();
-      if (event.code === 'KeyO') useFlightStore.getState().toggleHolo();
+      if (event.code === 'KeyO') {
+        const store = useFlightStore.getState();
+        if (store.viewMode !== 'cockpit') {
+          store.setView('cockpit');
+          if (!store.holo.open) store.toggleHolo();
+        } else {
+          store.toggleHolo();
+        }
+      }
       if (event.code === 'KeyP') useFlightStore.getState().toggleHelp();
       if (event.code === 'KeyM') useFlightStore.getState().toggleAudio();
       if (event.code === 'KeyG') {
@@ -152,8 +203,6 @@ export function FlightController() {
           'ArrowRight',
           'ShiftLeft',
           'ShiftRight',
-          'ControlLeft',
-          'ControlRight',
           'Space',
           'KeyX',
           'Digit0',
@@ -189,8 +238,8 @@ export function FlightController() {
         }
         store.jumpTo(store.targetId);
       }
-      if (/^Digit[0-9]$/.test(event.code)) {
-        useFlightStore.getState().setWarp(Number(event.code.slice(5)));
+      if (/^(?:Digit|Numpad)[0-9]$/.test(event.code)) {
+        useFlightStore.getState().setWarp(Number(event.code.slice(-1)));
       }
     };
     const up = (event) => {
@@ -220,6 +269,7 @@ export function FlightController() {
     };
     const wheel = (event) => {
       const store = useFlightStore.getState();
+      if (store.earthMode) return;
       if (store.helpOpen || store.jumpOpen || store.holo.formGalleryOpen) return;
       if (
         event.target?.closest?.('button, input, textarea, select, .panel, .modal, .modal-backdrop, .holo-gallery-shell')
@@ -289,8 +339,8 @@ export function FlightController() {
     const touchRoll = autopilotActive ? 0 : flightState.touchRoll || 0;
     const pitchInput = autopilotActive
       ? 0
-      : (keys.current.ArrowDown ? 1 : 0) -
-        (keys.current.ArrowUp ? 1 : 0) +
+      : (keys.current.ArrowUp ? 1 : 0) -
+        (keys.current.ArrowDown ? 1 : 0) +
         touchPitch +
         (looking ? 0 : mouse.current.dy * 0.0022);
     const yawInput = autopilotActive
@@ -341,13 +391,16 @@ export function FlightController() {
         }
       }
 
-      const throttleUp = keys.current.KeyW || keys.current.ShiftLeft || keys.current.ShiftRight;
-      const throttleDown = keys.current.KeyS || keys.current.ControlLeft || keys.current.ControlRight;
-      if (throttleUp) {
+      const throttleUp = keys.current.KeyW;
+      const throttleDown = keys.current.KeyS;
+      if (throttleUp && !throttleDown) {
         const boost = keys.current.ShiftLeft || keys.current.ShiftRight;
         throttle = Math.min(1, throttle + dt * (boost ? 0.9 : 0.38));
       }
-      if (throttleDown) throttle = Math.max(-1, throttle - dt * 0.5);
+      if (throttleDown && !throttleUp) {
+        const boost = keys.current.ShiftLeft || keys.current.ShiftRight;
+        throttle = Math.max(-1, throttle - dt * (boost ? 0.85 : 0.5));
+      }
       if (throttle !== flightState.throttle) {
         if (throttle < 0 && flightState.warp !== 0) {
           flightState.warp = 0;
@@ -408,6 +461,7 @@ export function FlightController() {
         const lookMatrix = new Matrix4().lookAt(desired, targetPos, new Vector3(0, 1, 0));
         beginJump(desired, new Quaternion().setFromRotationMatrix(lookMatrix));
         flightState.jump.targetId = targetId;
+        store.setJumpActive(true);
         store.addLog(`曲率泡已形成，正在跃迁至 ${target.name}。`);
       }
     }
@@ -422,6 +476,7 @@ export function FlightController() {
       flightState.speedC = 0;
       if (t >= 1) {
         flightState.jump.active = false;
+        store.setJumpActive(false);
         const target = BODY_BY_ID.get(flightState.jump.targetId) ?? MOON_BY_ID.get(flightState.jump.targetId);
         if (target) store.addLog(`已抵达 ${target.name} 附近空域。`);
       }
@@ -440,8 +495,8 @@ export function FlightController() {
 
     // Shield / collision response against planets and the Sun.
     const now = performance.now() / 1000;
-    if (!autopilotActive) {
-      const bodies = [SUN, ...PLANETS, ...MOONS.filter((moon) => moon.major)];
+    if (!autopilotActive && !flightState.jump.active) {
+      const bodies = [SUN, ...PLANETS, ...COMETS, ...MOONS.filter((moon) => moon.major)];
       for (const body of bodies) {
         const pos = getPosition(body.id);
         if (!pos) continue;

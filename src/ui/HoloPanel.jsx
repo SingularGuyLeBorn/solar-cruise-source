@@ -90,37 +90,39 @@ export function HoloPanel() {
               <p key={fact}>{fact}</p>
             ))}
           </div>
-          <div className="holo-nav-picker">
-            <button type="button" onClick={() => cycleSelector(-1)} aria-label="上一个天体">
-              ‹
-            </button>
-            <button
-              type="button"
-              className="holo-form-open-inline"
-              onClick={() => useFlightStore.getState().toggleSelector()}
-              title="打开全息星图"
-            >
-              全息星图
-            </button>
-            <button type="button" onClick={() => cycleSelector(1)} aria-label="下一个天体">
-              ›
-            </button>
+          <div className="holo-nav-controls">
+            <div className="holo-nav-picker">
+              <button type="button" onClick={() => cycleSelector(-1)} aria-label="上一个天体">
+                ‹
+              </button>
+              <button
+                type="button"
+                className="holo-form-open-inline"
+                onClick={() => useFlightStore.getState().toggleSelector()}
+                title="打开全息星图"
+              >
+                全息星图
+              </button>
+              <button type="button" onClick={() => cycleSelector(1)} aria-label="下一个天体">
+                ›
+              </button>
+            </div>
+            <div className="holo-nav-actions">
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectorPreview(body.id);
+                  setTarget(body.id);
+                }}
+              >
+                设为目标
+              </button>
+              <button type="button" className="primary" onClick={() => jumpTo(body.id)}>
+                超光速跃迁
+              </button>
+            </div>
           </div>
-          <div className="holo-nav-actions">
-            <button
-              type="button"
-              onClick={() => {
-                setSelectorPreview(body.id);
-                setTarget(body.id);
-              }}
-            >
-              设为目标
-            </button>
-            <button type="button" className="primary" onClick={() => jumpTo(body.id)}>
-              超光速跃迁
-            </button>
-          </div>
-          <small className="holo-nav-hint">空闲 9 秒自动巡游 · 滚轮 / 触控接管 · O 收起 · J 星图</small>
+          <small className="holo-nav-hint">空闲 9 秒自动巡游（选择后暂停） · 滚轮 / 触控接管 · O 收起 · J 星图</small>
         </>
       ) : (
         <>

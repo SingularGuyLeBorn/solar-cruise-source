@@ -4,6 +4,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { PLANETS, SUN } from '../data/solarSystem';
 import { useFlightStore } from '../state/useFlightStore';
 import { PlanetParticles } from './PlanetParticles';
+import { HoloSignalField, SignalCore, SignalNetwork, SignalTicks } from './HoloSignal';
 
 const MAX_PLANET_RADIUS = 69911;
 const TAIL_COUNT = 160;
@@ -100,12 +101,13 @@ function PlanetNode({ item, x, y, selected, scale, onSelect, particleCount }) {
   );
 }
 
-export function SolarHoloRing({ radius = 0.24, tilt = 1.04, nodeScale = 1, spin = 0.05 }) {
+export function SolarHoloRing({ radius = 0.24, tilt = 1.04, nodeScale = 1, spin = 0.05, signal = false }) {
   const previewId = useFlightStore((state) => state.selector.previewId);
   const setSelectorPreview = useFlightStore((state) => state.setSelectorPreview);
   const viewportWidth = useThree((state) => state.size.width);
   const compact = viewportWidth < 760;
   const spinGroup = useRef();
+  const counterDust = useRef();
   const nodeParticleCount = compact ? 190 : 370;
   const sunParticleCount = compact ? 360 : 700;
   const nodes = useMemo(
@@ -136,10 +138,22 @@ export function SolarHoloRing({ radius = 0.24, tilt = 1.04, nodeScale = 1, spin 
 
   useFrame(({ clock }, delta) => {
     if (spinGroup.current) spinGroup.current.rotation.z += delta * spin;
+    if (counterDust.current) counterDust.current.rotation.z -= delta * spin * 1.5;
   });
 
   return (
     <group>
+      {signal ? (
+        <HoloSignalField
+          width={radius * 3.9}
+          height={radius * 3.9}
+          position={[0, 0, -radius * 1.35]}
+          mode="solar"
+          palette={['#0b6f86', '#e0a253', '#7fe9ff']}
+          opacity={0.42}
+          seed={2.7}
+        />
+      ) : null}
       <group ref={spinGroup} rotation={[tilt, 0, 0]}>
         <mesh>
           <torusGeometry args={[radius, 0.0011, 4, 160]} />
@@ -175,6 +189,35 @@ export function SolarHoloRing({ radius = 0.24, tilt = 1.04, nodeScale = 1, spin 
             toneMapped={false}
           />
         </points>
+        {signal ? (
+          <>
+            <mesh rotation={[0, 0, 0.018]}>
+              <torusGeometry args={[radius * 1.005, 0.0008, 4, 160]} />
+              <meshBasicMaterial
+                color="#ff5fd2"
+                transparent
+                opacity={0.18}
+                blending={AdditiveBlending}
+                depthWrite={false}
+                toneMapped={false}
+              />
+            </mesh>
+            <mesh rotation={[0, 0, -0.018]}>
+              <torusGeometry args={[radius * 0.995, 0.0008, 4, 160]} />
+              <meshBasicMaterial
+                color="#62f5ff"
+                transparent
+                opacity={0.18}
+                blending={AdditiveBlending}
+                depthWrite={false}
+                toneMapped={false}
+              />
+            </mesh>
+            <SignalNetwork nodes={nodes} color="#7fe9ff" opacity={0.18} />
+            <SignalTicks radius={radius * 1.06} count={64} color="#f0c78f" opacity={0.24} length={radius * 0.05} />
+            <SignalCore radius={radius * 0.16} color="#d8b6ff" opacity={0.26} />
+          </>
+        ) : null}
         {nodes.map(({ item, x, y }) => (
           <PlanetNode
             key={item.id}
@@ -188,6 +231,22 @@ export function SolarHoloRing({ radius = 0.24, tilt = 1.04, nodeScale = 1, spin 
           />
         ))}
       </group>
+      {signal ? (
+        <group ref={counterDust} rotation={[tilt, 0, 0]}>
+          <points geometry={dustGeometry} scale={1.08}>
+            <pointsMaterial
+              color="#ff6bd8"
+              size={0.0018}
+              transparent
+              opacity={0.22}
+              blending={AdditiveBlending}
+              depthWrite={false}
+              sizeAttenuation
+              toneMapped={false}
+            />
+          </points>
+        </group>
+      ) : null}
     </group>
   );
 }

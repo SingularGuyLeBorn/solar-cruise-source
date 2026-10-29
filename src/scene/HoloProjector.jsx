@@ -73,7 +73,7 @@ function PhysicalHoloProjector() {
           onClick={() => setActiveProjector('collection')}
         >
           <group position={[0, 0.22, 0]} rotation={[0, 0.3, 0]}>
-            <CollectionHoloCloud count={5000} scale={0.32} showFrame active={activeProjector === 'collection'} />
+            <CollectionHoloCloud count={5000} scale={0.32} showFrame signal active={activeProjector === 'collection'} />
           </group>
         </ProjectorBase>
       </group>
@@ -85,7 +85,7 @@ function PhysicalHoloProjector() {
           onClick={() => setActiveProjector('solar')}
         >
           <group position={[0, 0.06, 0]} rotation={[0, -0.24, 0]}>
-            <SolarHoloRing radius={0.185} tilt={-1.02} nodeScale={1.02} spin={0.05} />
+            <SolarHoloRing radius={0.185} tilt={-1.02} nodeScale={1.02} spin={0.05} signal />
           </group>
         </ProjectorBase>
       </group>

@@ -326,10 +326,13 @@ export function Autopilot() {
     flightState.steerX = Math.max(-1, Math.min(1, scratch.errorAxis.z * attitudeError));
     flightState.steerY = Math.max(-1, Math.min(1, scratch.errorAxis.x * attitudeError));
 
-    if (autopilot.mode === 'approach' && !tooFar && !engine.current.arrived) {
+    if (autopilot.mode === 'approach' && !tooFar && engine.current.arrived) {
+      phase = 'holding';
+    } else if (autopilot.mode === 'approach' && !tooFar) {
       if (positionError < 0.7 && relativeSpeed < 0.9) {
         engine.current.arrived = true;
         phase = 'holding';
+        engine.current.lastUi = 0;
         state.addLog(`自动驾驶已抵达 ${targetBody?.name ?? '目标'} 保持点。`);
       } else {
         phase = relativeSpeed > 1.2 ? 'cruising' : 'braking';

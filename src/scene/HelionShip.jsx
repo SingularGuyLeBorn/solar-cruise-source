@@ -3,6 +3,7 @@ import { useGLTF } from '@react-three/drei';
 import { Box3, DoubleSide, MeshPhysicalMaterial, Vector3 } from 'three';
 import { applyHullDetail } from '../lib/hullMaterial';
 import { SHIP_VARIANT } from '../state/shipVariant';
+import { assetPath } from '../lib/assetPath';
 
 const TARGET_LENGTH = 10.6;
 const PANEL_OFFSET = [((SHIP_VARIANT.seed % 97) / 37) % 1, ((SHIP_VARIANT.seed % 53) / 29) % 1];
@@ -86,7 +87,7 @@ function createCanopyMaterial() {
 }
 
 export function HelionShip() {
-  const { scene } = useGLTF('/models/helion/ship_vanguard_mk3.glb');
+  const { scene } = useGLTF(assetPath('/models/helion/ship_vanguard_mk3.glb'));
 
   const model = useMemo(() => {
     const clone = scene.clone(true);

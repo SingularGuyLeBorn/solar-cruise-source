@@ -1,13 +1,14 @@
-import { Suspense, useMemo, useRef, useState } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { Html, Line, Stars, useGLTF } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
-import { AdditiveBlending, Box3, DoubleSide, Object3D, Quaternion, Vector3 } from 'three';
+import { AdditiveBlending, Box3, DoubleSide, Object3D, Quaternion, RingGeometry, Vector3 } from 'three';
 import { PLANETS, SUN, COMETS } from '../data/solarSystem';
 import { MOONS, MOONS_BY_PARENT } from '../data/moons';
 import { LANDMARKS_BY_BODY } from '../data/landmarks';
 import { UNITS_PER_AU } from '../data/scale';
 import { orbitPoints, latLonToVector3 } from '../lib/orbits';
 import { radialGlowTexture } from '../lib/textures';
+import { assetPath } from '../lib/assetPath';
 import { useProgressiveTexture } from '../lib/progressiveTextures';
 import { createAtmosphereMaterial, createCloudMaterial, createEarthMaterial, createSunMaterial } from './materials';
 import { ApolloFootprint, ApolloLander, PerseveranceRover } from './NasaSurface';
@@ -17,7 +18,7 @@ import { useFlightStore } from '../state/useFlightStore';
 import { updateWorld, worldState } from '../state/worldState';
 
 const DEG = Math.PI / 180;
-const publicPath = (path) => (path?.startsWith('/') ? path : `/${path}`);
+const publicPath = (path) => assetPath(path);
 
 const OCCLUDERS = [SUN, ...PLANETS, ...MOONS.filter((moon) => moon.major)].map((body) => ({
   id: body.id,
@@ -129,7 +130,7 @@ function Orbit({ body, color, opacity = 0.2 }) {
   return <Line points={points} color={color} transparent opacity={opacity} lineWidth={1} depthWrite={false} />;
 }
 
-function TexturedSphere({ path, radius, bodyId, color }) {
+function TexturedSphere({ path, radius, bodyId, color, tint }) {
   const { texture } = useProgressiveTexture({
     url: publicPath(path),
     positionId: bodyId,
@@ -138,7 +139,13 @@ function TexturedSphere({ path, radius, bodyId, color }) {
   return (
     <mesh>
       <sphereGeometry args={[radius, radius > 15 ? 56 : 40, radius > 15 ? 36 : 26]} />
-      <meshStandardMaterial map={texture} color={texture ? '#ffffff' : color} roughness={0.9} metalness={0.02} />
+      <meshStandardMaterial
+        key={texture ? 'textured' : 'flat'}
+        map={texture}
+        color={texture ? (tint ?? '#ffffff') : color}
+        roughness={0.9}
+        metalness={0.02}
+      />
     </mesh>
   );
 }
@@ -217,6 +224,7 @@ function MarsSphere({ body, radius }) {
     <mesh>
       <sphereGeometry args={[radius, detailed ? 128 : 48, detailed ? 64 : 32]} />
       <meshStandardMaterial
+        key={`${map ? 'map' : 'flat'}-${detailed ? 'detailed' : 'simple'}`}
         map={map}
         color={map ? '#ffffff' : body.color}
         displacementMap={detailed ? displacement : null}
@@ -237,10 +245,24 @@ function RingSystem({ body, radius }) {
     previewScale: 40,
     hiResScale: 12,
   });
+  const inner = radius * 1.35;
+  const outer = radius * 2.35;
+  const geometry = useMemo(() => {
+    const ring = new RingGeometry(inner, outer, 192, 4);
+    const position = ring.attributes.position;
+    const uv = ring.attributes.uv;
+    for (let index = 0; index < position.count; index += 1) {
+      const distance = Math.hypot(position.getX(index), position.getY(index));
+      uv.setXY(index, (distance - inner) / (outer - inner), 0.5);
+    }
+    uv.needsUpdate = true;
+    return ring;
+  }, [inner, outer]);
+  useEffect(() => () => geometry.dispose(), [geometry]);
   return (
-    <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-      <ringGeometry args={[radius * 1.35, radius * 2.35, 160, 1]} />
+    <mesh geometry={geometry} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
       <meshBasicMaterial
+        key={texture ? 'textured' : 'flat'}
         map={texture}
         color={texture ? '#ffffff' : (body.ringColor ?? '#cbb894')}
         transparent
@@ -373,6 +395,7 @@ function TexturedMoon({ moon }) {
     <mesh>
       <sphereGeometry args={[moon.visualRadius, moon.major ? 48 : 24, moon.major ? 32 : 16]} />
       <meshStandardMaterial
+        key={texture ? 'textured' : 'flat'}
         map={texture}
         color={texture ? '#ffffff' : (moon.color ?? '#8b8177')}
         roughness={0.92}
@@ -478,7 +501,13 @@ function Planet({ body }) {
             ) : body.displacementTexture ? (
               <MarsSphere body={body} radius={body.visualRadius} />
             ) : (
-              <TexturedSphere path={body.texture} radius={body.visualRadius} bodyId={body.id} color={body.color} />
+              <TexturedSphere
+                path={body.texture}
+                radius={body.visualRadius}
+                bodyId={body.id}
+                color={body.color}
+                tint={body.tint}
+              />
             )}
             <Landmarks body={body} radius={body.visualRadius} />
           </group>
@@ -534,14 +563,7 @@ function SunFlare({ index, texture }) {
 }
 
 function Sun() {
-  const { texture } = useProgressiveTexture({
-    url: publicPath(SUN.texture),
-    positionId: SUN.id,
-    radius: SUN.visualRadius,
-    immediate: true,
-    hiResScale: 20,
-  });
-  const material = useMemo(() => createSunMaterial(texture), [texture]);
+  const material = useMemo(() => createSunMaterial(), []);
   const glow = useMemo(() => radialGlowTexture(), []);
   const flares = useMemo(() => Array.from({ length: 4 }, (_, index) => index), []);
 
@@ -580,7 +602,7 @@ function Sun() {
       {flares.map((index) => (
         <SunFlare key={index} index={index} texture={glow} />
       ))}
-      <pointLight color="#ffd4a0" intensity={3.4} distance={0} decay={0} />
+      <pointLight color="#fff2e2" intensity={1.9} distance={0} decay={0} />
       <GatedHtml
         maxDistance={Infinity}
         occludeId="sun"
@@ -603,7 +625,9 @@ function Sun() {
 }
 
 function CometNucleus({ comet }) {
-  const { scene } = useGLTF(comet.id === 'churyumov' ? '/models/comets/67p.glb' : '/models/comets/tempel1.glb');
+  const { scene } = useGLTF(
+    assetPath(comet.id === 'churyumov' ? '/models/comets/67p.glb' : '/models/comets/tempel1.glb'),
+  );
   const model = useMemo(() => {
     const clone = scene.clone(true);
     clone.updateMatrixWorld(true);
@@ -650,7 +674,7 @@ function Comet({ comet }) {
         const away = position.clone().normalize();
         tail.current.quaternion.setFromUnitVectors(new Vector3(0, 1, 0), away);
       }
-      const near = camera.position.distanceTo(position) < Math.max(comet.visualRadius * 600, 120);
+      const near = camera.position.distanceTo(position) < Math.max((comet.visualRadius ?? 0.5) * 600, 120);
       if (near !== nearRef.current) {
         nearRef.current = near;
         setShowNucleus(near);
@@ -682,10 +706,12 @@ function Comet({ comet }) {
             <bufferAttribute attach="attributes-position" args={[tailPositions, 3]} />
           </bufferGeometry>
           <pointsMaterial
+            map={glow}
             color={comet.tailColor}
-            size={0.07}
+            size={0.12}
             transparent
-            opacity={0.42}
+            opacity={0.5}
+            alphaTest={0.02}
             blending={AdditiveBlending}
             depthWrite={false}
           />
@@ -701,7 +727,7 @@ function AsteroidBelt() {
   const count = 240;
   const beltInnerAu = 2.08;
   const beltOuterAu = 3.28;
-  const { scene } = useGLTF('/models/helion/asteroid_0.glb');
+  const { scene } = useGLTF(assetPath('/models/helion/asteroid_0.glb'));
   const { geometry, material } = useMemo(() => {
     let sourceGeometry = null;
     let sourceMaterial = null;
@@ -835,7 +861,7 @@ export function SolarSystem() {
   return (
     <>
       <color attach="background" args={['#01030a']} />
-      <ambientLight intensity={0.3} />
+      <ambientLight intensity={0.36} />
       <Starfield />
       <Sun />
       {PLANETS.map((planet) => (

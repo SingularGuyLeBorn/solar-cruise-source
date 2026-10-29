@@ -3,8 +3,9 @@ import { useFrame } from '@react-three/fiber';
 import { AdditiveBlending, BufferAttribute, BufferGeometry, Color, ShaderMaterial } from 'three';
 import { SUN } from '../data/solarSystem';
 import { thumbPath, useStaticTexture } from '../lib/progressiveTextures';
+import { assetPath } from '../lib/assetPath';
 
-const publicPath = (path) => (path?.startsWith('/') ? path : `/${path}`);
+const publicPath = (path) => assetPath(path);
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
 const PIXEL_CACHE = new Map();
 const CLOUD_CACHE = new Map();

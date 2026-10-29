@@ -5,6 +5,7 @@ import { AdditiveBlending, Box3, Quaternion, Vector3 } from 'three';
 import { radialGlowTexture } from '../lib/textures';
 import { flightState, triggerShieldImpact } from '../state/flightState';
 import { useFlightStore } from '../state/useFlightStore';
+import { assetPath } from '../lib/assetPath';
 
 const SHIELD_RADIUS = 5.25;
 
@@ -15,7 +16,7 @@ const HAZARD_MIN_DELAY = 120;
 const HAZARD_RANGE = 120;
 
 function StrikeRock() {
-  const { scene } = useGLTF('/models/helion/asteroid_0.glb');
+  const { scene } = useGLTF(assetPath('/models/helion/asteroid_0.glb'));
   const model = useMemo(() => {
     const clone = scene.clone(true);
     clone.updateMatrixWorld(true);

@@ -134,7 +134,7 @@ export function HoloSelectorPanel() {
       </div>
 
       <small className="holo-selector-hint">
-        空闲 9 秒自动巡游 · 滚轮 / 触控切换 3D 行星节点 · J 关闭，Space 跃迁 · Y 全部目的地
+        空闲 9 秒自动巡游（选择后暂停） · 滚轮 / 触控切换 3D 行星节点 · J 关闭，Space 跃迁 · Y 全部目的地
       </small>
     </div>
   );

@@ -38,7 +38,7 @@ export function getPosition(id) {
 export function nearestPlanet(position) {
   let best = null;
   let bestDistance = Infinity;
-  for (const body of [SUN, ...PLANETS, ...MOONS.filter((moon) => moon.major)]) {
+  for (const body of [SUN, ...PLANETS, ...COMETS, ...MOONS.filter((moon) => moon.major)]) {
     const pos = worldState.positions.get(body.id);
     if (!pos) continue;
     const distance = pos.distanceTo(position) - body.visualRadius;

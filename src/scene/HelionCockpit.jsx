@@ -5,9 +5,10 @@ import { CockpitScreen } from '../ui/CockpitScreens';
 import { HoloProjector } from './HoloProjector';
 import { flightState } from '../state/flightState';
 import { useFlightStore } from '../state/useFlightStore';
+import { assetPath } from '../lib/assetPath';
 
 export function HelionCockpit({ visible = true, compact = false }) {
-  const { scene } = useGLTF('/models/helion/cockpit.glb');
+  const { scene } = useGLTF(assetPath('/models/helion/cockpit.glb'));
   const cockpitRoot = useRef();
   const viewportWidth = useThree((state) => state.size.width);
   const showInstruments = !compact && viewportWidth >= 900;
@@ -22,7 +23,6 @@ export function HelionCockpit({ visible = true, compact = false }) {
       const materials = source.map((material) => {
         const next = material.clone();
         const name = (material.name || '').toLowerCase();
-        next.map = null;
         if (name.includes('panel')) {
           next.color.set('#2a5566');
           next.emissive?.set('#0d3442');
@@ -30,21 +30,21 @@ export function HelionCockpit({ visible = true, compact = false }) {
           next.roughness = 0.18;
           next.metalness = 0.15;
           next.transparent = true;
-          next.opacity = 0.1;
+          next.opacity = 0.72;
           next.depthWrite = false;
         } else if (name.includes('dark')) {
           next.color.set('#0d2029');
           next.roughness = 0.2;
           next.metalness = 0.3;
           next.transparent = true;
-          next.opacity = 0.05;
+          next.opacity = 0.72;
           next.depthWrite = false;
         } else if (name.includes('frame')) {
           next.color.set('#12303c');
           next.roughness = 0.22;
           next.metalness = 0.45;
           next.transparent = true;
-          next.opacity = 0.12;
+          next.opacity = 0.72;
           next.depthWrite = false;
         } else if (name.includes('accent')) {
           next.color.set('#6fe3ff');
@@ -66,29 +66,28 @@ export function HelionCockpit({ visible = true, compact = false }) {
           next.emissiveIntensity = 0.9;
           next.toneMapped = false;
           next.transparent = true;
-          next.opacity = 0.78;
+          next.opacity = 0.86;
           next.depthWrite = false;
         } else if (name.includes('gauge')) {
           next.color.set('#0c1a22');
           next.emissive?.set('#123340');
           next.emissiveIntensity = 0.4;
           next.transparent = true;
-          next.opacity = 0.14;
+          next.opacity = 0.72;
           next.depthWrite = false;
         } else {
           next.color.set('#22333f');
           next.roughness = 0.5;
           next.metalness = 0.5;
           next.transparent = true;
-          next.opacity = 0.08;
+          next.opacity = 0.72;
           next.depthWrite = false;
         }
         next.needsUpdate = true;
         return next;
       });
       object.material = Array.isArray(object.material) ? materials : materials[0];
-      // This canopy strut crosses the eye line as a broad translucent band.
-      if ((object.parent?.name ?? '') === 'Cockpit' && meshMaterial.includes('frame')) {
+      if (object.name === 'dashL004_2') {
         object.visible = false;
       }
       if (compact) {
@@ -180,8 +179,8 @@ export function HelionCockpit({ visible = true, compact = false }) {
               </>
             )}
             <HoloProjector />
-            <pointLight position={[0, 0.55, 0.15]} intensity={2.6} distance={3.4} color="#8fdcff" />
-            <pointLight position={[0, -0.2, -0.5]} intensity={0.25} distance={2.2} color="#ffb15a" />
+            <pointLight position={[0, 0.55, 0.15]} intensity={0.45} distance={3.4} color="#8fdcff" />
+            <pointLight position={[0, -0.2, -0.5]} intensity={0.12} distance={2.2} color="#ffb15a" />
           </>
         )}
       </group>

@@ -68,6 +68,29 @@ export function HUD() {
         aria-hidden="true"
         style={{ opacity: Math.min(0.24, state.solar.interference * 0.45) }}
       />
+      {state.scanSerial > 0 && !state.earthMode && (
+        <div key={`scan-${state.scanSerial}`} className="scan-burst" aria-hidden="true">
+          <i />
+          <i />
+          <i />
+          <b>SENSOR PING</b>
+        </div>
+      )}
+      {state.jumpActive && !state.earthMode && (
+        <div className="jump-charge" aria-hidden="true">
+          <div className="jump-charge__scan" />
+          <div className="jump-charge__ring">
+            <i />
+            <i />
+            <b />
+          </div>
+          <div className="jump-charge__text">
+            <span>CURVATURE DRIVE</span>
+            <strong>曲率跃迁</strong>
+            <em>VECTOR LOCKED</em>
+          </div>
+        </div>
+      )}
 
       <header className="hud-top">
         <div className="brand">
@@ -114,8 +137,15 @@ export function HUD() {
           <button
             className={state.holo.open ? 'active' : ''}
             type="button"
-            onClick={state.toggleHolo}
-            title="驾驶舱投影（O）"
+            onClick={() => {
+              if (state.viewMode !== 'cockpit') {
+                state.setView('cockpit');
+                if (!state.holo.open) state.toggleHolo();
+              } else {
+                state.toggleHolo();
+              }
+            }}
+            title="驾驶舱投影（O，自动切回驾驶舱）"
           >
             投影 <kbd>O</kbd>
           </button>
@@ -157,6 +187,7 @@ export function HUD() {
       <HoloPanel />
       <MobileControls />
       <MobileScanCard state={state} />
+      {state.viewMode === 'cockpit' && !state.earthMode && <CockpitScanCard state={state} />}
       <HoloAutoCycle />
       <HoloFormCycle />
       <HoloFormGallery />
@@ -343,6 +374,25 @@ function MobileScanCard({ state }) {
   );
 }
 
+function CockpitScanCard({ state }) {
+  const body = state.scanResult;
+  if (!body) return null;
+  const facts = (body.facts ?? [body.fact]).filter(Boolean).slice(0, 2);
+  return (
+    <div className="panel scan-panel scan-toast">
+      <span className="eyebrow">SCAN RESULT / 扫描结果</span>
+      <h3>{body.name}</h3>
+      <small>{body.en}</small>
+      {facts.map((fact) => (
+        <p key={fact}>{fact}</p>
+      ))}
+      <button type="button" onClick={state.clearScan}>
+        关闭
+      </button>
+    </div>
+  );
+}
+
 function JumpMenu({ state }) {
   const groups = [
     { label: '行星与矮行星', items: PLANETS },
@@ -393,10 +443,10 @@ function HelpPanel({ state }) {
   const rows = [
     ['鼠标', '驾驶舱 360° 自由环视 / 追尾视角转向'],
     ['W / S', 'W 朝当前视角转向并推进 / S 反推（S 可进入倒退）'],
-    ['Shift', '加力'],
+    ['Shift', '加力推进 / 加力反推（配合 W / S）'],
     ['方向键', '俯仰 / 偏航'],
     ['A / D', '滚转（A 左 / D 右）'],
-    ['数字 0–9', '直接设定曲率档位'],
+    ['数字 0–9', '直接设定曲率档位（含小键盘）'],
     ['Space', '跳跃到当前目标'],
     ['滚轮', '切换当前投影：馆藏下一件 / 太阳系下一个天体'],
     ['J', '打开 / 关闭全屏全息星图'],
@@ -440,7 +490,7 @@ function HelpPanel({ state }) {
         </div>
         <p>
           提示：在驾驶舱内可以点击护盾 / 引擎按钮；起飞前引擎已点火。曲率档位越高，星场拉伸越明显。接近行星时按 R
-          扫描，档案会显示在右侧。
+          扫描，档案会显示在 HUD 上。
         </p>
         <button className="primary" type="button" onClick={state.toggleHelp}>
           开始航行

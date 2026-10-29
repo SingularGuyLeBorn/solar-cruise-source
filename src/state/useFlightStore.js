@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { BODY_BY_ID, PLANETS, SUN } from '../data/solarSystem';
+import { BODY_BY_ID, COMETS, PLANETS, SUN } from '../data/solarSystem';
 import { MOON_BY_ID } from '../data/moons';
 import { HOLO_ARTIFACTS } from '../data/holoArtifacts';
 import { flashShield, flightState } from './flightState';
@@ -14,6 +14,7 @@ const SIM_SPEEDS = [
 
 const coarseViewport =
   typeof window !== 'undefined' && window.matchMedia('(max-width: 900px), (pointer: coarse)').matches;
+const SELECTOR_IDS = new Set([SUN.id, ...PLANETS.map((planet) => planet.id), ...COMETS.map((comet) => comet.id)]);
 
 export const useFlightStore = create((set, get) => ({
   viewMode: 'cockpit',
@@ -32,8 +33,10 @@ export const useFlightStore = create((set, get) => ({
   nearDistance: Infinity,
   helpOpen: false,
   jumpOpen: false,
+  jumpActive: false,
   earthMode: false,
   scanResult: null,
+  scanSerial: 0,
   holo: {
     open: !coarseViewport,
     activeProjector: 'solar',
@@ -62,7 +65,7 @@ export const useFlightStore = create((set, get) => ({
   strikePulse: 0,
   strikeMode: 'impact',
   hazard: { mayday: false, kind: 'none', distance: 0, eta: 0 },
-  selector: { open: false, previewId: 'earth', lastInputAt: Date.now() },
+  selector: { open: false, previewId: 'earth', lastInputAt: Date.now(), autoPaused: false },
   solar: {
     activity: 0.3,
     flare: 0,
@@ -130,13 +133,29 @@ export const useFlightStore = create((set, get) => ({
     return SIM_SPEEDS[get().simSpeedIndex].label;
   },
   setTarget(targetId) {
-    set({ targetId });
+    set((state) => ({
+      targetId,
+      selector: SELECTOR_IDS.has(targetId)
+        ? { ...state.selector, previewId: targetId, lastInputAt: Date.now() }
+        : state.selector,
+    }));
   },
   setNear(nearId, nearDistance) {
     set({ nearId, nearDistance });
   },
+  setJumpActive(jumpActive) {
+    set({ jumpActive });
+  },
   toggleHelp() {
-    set((state) => ({ helpOpen: !state.helpOpen }));
+    set((state) => {
+      const helpOpen = !state.helpOpen;
+      return {
+        helpOpen,
+        selector: helpOpen ? { ...state.selector, open: false } : state.selector,
+        jumpOpen: helpOpen ? false : state.jumpOpen,
+        holo: helpOpen ? { ...state.holo, formGalleryOpen: false } : state.holo,
+      };
+    });
   },
   toggleJump() {
     set((state) => {
@@ -156,15 +175,24 @@ export const useFlightStore = create((set, get) => ({
     const target = BODY_BY_ID.get(targetId) ?? MOON_BY_ID.get(targetId);
     if (!target) return;
     if (get().autopilot.enabled) get().disengageAutopilot('jump');
+    const resetTime = get().simSpeedIndex !== 1;
+    const selectable = SELECTOR_IDS.has(targetId);
     set((state) => ({
       targetId,
       jumpOpen: false,
       earthMode: false,
       simSpeedIndex: 1,
-      selector: { ...state.selector, open: false },
+      scanResult: null,
+      ...(selectable ? null : { holo: { ...state.holo, open: false } }),
+      selector: {
+        ...state.selector,
+        open: false,
+        ...(selectable ? { previewId: targetId, lastInputAt: Date.now() } : null),
+      },
     }));
     flightState.jumpRequest = targetId;
     get().addLog(`跳跃目标锁定：${target.name}。曲率场充能中…`);
+    if (resetTime) get().addLog('跃迁开始，时间倍率已重置为 1×。');
   },
   requestAsteroidStrike(mode = 'impact') {
     set((state) => ({ strikePulse: state.strikePulse + 1, strikeMode: mode }));
@@ -173,26 +201,32 @@ export const useFlightStore = create((set, get) => ({
     set((state) => ({ hazard: { ...state.hazard, ...patch } }));
   },
   toggleSelector() {
-    set((state) => ({
-      jumpOpen: false,
-      holo: { ...state.holo, formGalleryOpen: false },
-      selector: {
-        ...state.selector,
-        open: !state.selector.open,
-        lastInputAt: Date.now(),
-      },
-    }));
+    set((state) => {
+      const open = !state.selector.open;
+      return {
+        jumpOpen: false,
+        helpOpen: false,
+        holo: { ...state.holo, formGalleryOpen: false },
+        selector: {
+          ...state.selector,
+          open,
+          previewId: open && SELECTOR_IDS.has(state.targetId) ? state.targetId : state.selector.previewId,
+          lastInputAt: Date.now(),
+          autoPaused: open ? false : state.selector.autoPaused,
+        },
+      };
+    });
   },
   closeSelector() {
     set((state) => ({ selector: { ...state.selector, open: false } }));
   },
   setSelectorPreview(previewId) {
     set((state) => ({
-      selector: { ...state.selector, previewId, lastInputAt: Date.now() },
+      selector: { ...state.selector, previewId, lastInputAt: Date.now(), autoPaused: true },
       holo: { ...state.holo, activeProjector: 'solar' },
     }));
   },
-  cycleSelector(direction = 1) {
+  cycleSelector(direction = 1, auto = false) {
     const order = [SUN, ...PLANETS];
     const current = order.findIndex((body) => body.id === get().selector.previewId);
     const next = order[(current + direction + order.length) % order.length];
@@ -201,6 +235,7 @@ export const useFlightStore = create((set, get) => ({
         ...state.selector,
         previewId: next?.id ?? state.selector.previewId,
         lastInputAt: Date.now(),
+        autoPaused: auto ? state.selector.autoPaused : true,
       },
     }));
   },
@@ -221,7 +256,7 @@ export const useFlightStore = create((set, get) => ({
       return;
     }
     flightState.scanPulse = performance.now() / 1000;
-    set({ scanResult: body });
+    set((state) => ({ scanResult: body, scanSerial: state.scanSerial + 1 }));
     get().addLog(`扫描完成：${body.name}，${body.facts?.[0] ?? body.fact ?? '已记录基础参数。'}`);
   },
   clearScan() {
@@ -325,6 +360,10 @@ export const useFlightStore = create((set, get) => ({
     else state.cycleSelector(direction);
   },
   setEarthMode(earthMode) {
+    if (earthMode && flightState.jump.active) {
+      get().addLog('跃迁进行中，暂无法进入地球轨道视图。');
+      return;
+    }
     if (earthMode && get().autopilot.enabled) get().disengageAutopilot('earth');
     set((state) => ({
       earthMode,
@@ -348,6 +387,7 @@ export const useFlightStore = create((set, get) => ({
     flightState.warp = 0;
     flightState.throttle = 0;
     flightState.speedC = 0;
+    const resetTime = get().simSpeedIndex !== 1;
     set((previous) => ({
       throttle: 0,
       warp: 0,
@@ -374,6 +414,7 @@ export const useFlightStore = create((set, get) => ({
           ? `自动驾驶：指向 ${target.name}。`
           : '自动驾驶：位置保持。',
     );
+    if (resetTime) get().addLog('自动驾驶接管，时间倍率已重置为 1×。');
   },
   disengageAutopilot(reason = 'manual') {
     const state = get();

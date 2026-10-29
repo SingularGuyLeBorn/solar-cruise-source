@@ -3,6 +3,7 @@ import { useGLTF } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import { Box3, Vector3 } from 'three';
 import { worldState } from '../state/worldState';
+import { assetPath } from '../lib/assetPath';
 
 function fitModel(scene, targetSize, color, { tint = false } = {}) {
   const clone = scene.clone(true);
@@ -43,19 +44,19 @@ function useNearbyMoon(moon, factor = 300, minDistance = 20) {
 }
 
 function PhobosGLB({ moon }) {
-  const { scene } = useGLTF('/models/nasa/phobos.glb');
+  const { scene } = useGLTF(assetPath('/models/nasa/phobos.glb'));
   const model = useMemo(() => fitModel(scene, moon.visualRadius * 2.05, moon.color), [scene, moon]);
   return <primitive object={model} />;
 }
 
 function HyperionGLB({ moon }) {
-  const { scene } = useGLTF('/models/comets/67p.glb');
+  const { scene } = useGLTF(assetPath('/models/comets/67p.glb'));
   const model = useMemo(() => fitModel(scene, moon.visualRadius * 2.1, '#7a6654'), [scene, moon]);
   return <primitive object={model} />;
 }
 
 function AsteroidGLB({ moon }) {
-  const { scene } = useGLTF('/models/helion/asteroid_0.glb');
+  const { scene } = useGLTF(assetPath('/models/helion/asteroid_0.glb'));
   const model = useMemo(() => fitModel(scene, moon.visualRadius * 2, moon.color, { tint: true }), [scene, moon]);
   return <primitive object={model} />;
 }

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { CollectionHoloCloud, MiniOrrery } from '../scene/CollectionHoloCloud';
+import { HoloSignalField } from '../scene/HoloSignal';
 import { useFlightStore } from '../state/useFlightStore';
 
 const QUERY = '(max-width: 900px), (pointer: coarse)';
@@ -36,7 +37,7 @@ export function ProjectorPreview({ mode, selectedId }) {
           camera={{ position: [0, 0.08, 2.5], fov: 36, near: 0.1, far: 20 }}
           gl={{ alpha: true, antialias: true, powerPreference: 'high-performance' }}
         >
-          <CollectionHoloCloud count={2600} scale={1.35} pointSize={2.1} />
+          <CollectionHoloCloud count={2600} scale={1.35} pointSize={2.1} signal />
         </Canvas>
       ) : (
         <Canvas
@@ -44,6 +45,15 @@ export function ProjectorPreview({ mode, selectedId }) {
           camera={{ position: [0, 0.85, 2.15], fov: 40, near: 0.1, far: 20 }}
           gl={{ alpha: true, antialias: true, powerPreference: 'high-performance' }}
         >
+          <HoloSignalField
+            width={2.5}
+            height={2.5}
+            position={[0, 0, -1.4]}
+            mode="solar"
+            palette={['#0b6f86', '#e0a253', '#7fe9ff']}
+            opacity={0.38}
+            seed={2.7}
+          />
           <MiniOrrery selectedId={selectedId} />
         </Canvas>
       )}

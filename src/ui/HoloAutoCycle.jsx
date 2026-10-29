@@ -8,10 +8,10 @@ export function HoloAutoCycle() {
     const timer = window.setInterval(() => {
       if (document.hidden) return;
       const state = useFlightStore.getState();
-      if (!state.selector.open) return;
+      if (!state.selector.open || state.selector.autoPaused) return;
       if (state.earthMode || state.helpOpen || state.jumpOpen || state.holo.formGalleryOpen) return;
       if (Date.now() - state.selector.lastInputAt < IDLE_MS) return;
-      state.cycleSelector(1);
+      state.cycleSelector(1, true);
     }, 1000);
     return () => window.clearInterval(timer);
   }, []);
