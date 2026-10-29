@@ -2,7 +2,8 @@
 
 第一人称/第三人称的太阳系曲率飞船体验。驾驶“先驱者号”离开地球，在按真实尺寸比例搭出的太阳系里飞行、跃迁、切换左右两台全息投影（馆藏 / 太阳系），或者切到 Cesium 俯瞰地球。右上角小地图显示你在太阳系的位置；鼠标拖动画面环视，不再被画布锁定。
 
-**在线快照（PinMe）**：<https://429cffea.pinme.dev> — 冷启动入口约 2.9 秒、首帧约 4.2 秒。
+**在线快照（PinMe）**：<https://d6cc2ea5.pinme.dev> — 2026-10-29 生成式投影与可部署资源路径版本。  
+**GitHub Pages 镜像**：<https://singularguyleborn.github.io/solar-cruise/>（dist-only 备份，本网络可能较慢）。
 
 ![驾驶舱与两台全息投影](docs/cockpit.png)
 
